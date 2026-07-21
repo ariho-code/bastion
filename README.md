@@ -14,6 +14,20 @@ A world-class, non-invasive website security scanner. Grades any site A–F acro
 2. Go to https://vercel.com/new, import the repo, and click Deploy. That's it.
 3. Every future `git push` auto-deploys.
 
+### Set your production URL
+
+For correct canonical links, sitemap and social share cards, add an environment
+variable in **Vercel → Settings → Environment Variables** (see `.env.example`):
+
+```
+NEXT_PUBLIC_SITE_URL=https://yourdomain.com
+```
+
+Shared scan results automatically generate a branded Open Graph image
+(`/og?host=…&grade=A&score=95`) so links unfurl into a "yoursite.com scored A"
+card on X, LinkedIn, Slack and iMessage. Traffic and Core Web Vitals are tracked
+via Vercel Analytics and Speed Insights (enable them in your Vercel dashboard).
+
 ## Run locally
 
 ```bash

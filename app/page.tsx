@@ -1,7 +1,56 @@
+import type { Metadata } from "next";
 import ScannerApp from "@/components/ScannerApp";
 import Pricing from "@/components/Pricing";
 import Faq from "@/components/Faq";
 import { brand } from "@/lib/brand";
+
+type SearchParams = Record<string, string | string[] | undefined>;
+
+const str = (v: string | string[] | undefined): string | undefined =>
+  typeof v === "string" ? v : Array.isArray(v) ? v[0] : undefined;
+
+/**
+ * When a shared result link is opened (/?url=host&grade=A&score=95) we emit a
+ * per-scan title and a dynamic Open Graph image so the link unfurls into a
+ * branded "yoursite.com scored A" card on social platforms. Otherwise we fall
+ * back to the site-wide defaults from the layout + opengraph-image.
+ */
+export function generateMetadata({
+  searchParams,
+}: {
+  searchParams: SearchParams;
+}): Metadata {
+  const rawUrl = str(searchParams.url);
+  const grade = str(searchParams.grade)?.toUpperCase().slice(0, 1);
+  const score = str(searchParams.score)?.replace(/[^0-9]/g, "").slice(0, 3);
+  if (!rawUrl || !grade || !/^[A-F]$/.test(grade)) return {};
+
+  const host = rawUrl
+    .replace(/^https?:\/\//i, "")
+    .replace(/\/.*$/, "")
+    .slice(0, 64);
+  const title = `${host} scored ${grade}${score ? ` (${score}/100)` : ""} on ${brand.name}`;
+  const description = `See the full website security report for ${host} — TLS, security headers, DNS/email and cookies — graded A–F with copy-paste fixes.`;
+  const ogImage = `/og?host=${encodeURIComponent(host)}&grade=${grade}${
+    score ? `&score=${score}` : ""
+  }`;
+
+  return {
+    title,
+    description,
+    openGraph: {
+      title,
+      description,
+      images: [{ url: ogImage, width: 1200, height: 630 }],
+    },
+    twitter: {
+      card: "summary_large_image",
+      title,
+      description,
+      images: [ogImage],
+    },
+  };
+}
 
 const CATEGORIES = [
   {

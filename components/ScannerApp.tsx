@@ -141,9 +141,25 @@ export default function ScannerApp() {
     }
   }
 
-  function shareLink() {
+  async function shareLink() {
     if (!result) return;
-    const link = `${window.location.origin}/?url=${encodeURIComponent(result.host)}`;
+    const link = `${window.location.origin}/?url=${encodeURIComponent(result.host)}&grade=${encodeURIComponent(
+      result.grade
+    )}&score=${result.score}`;
+    // Native share sheet on mobile (bigger reach), copy-to-clipboard elsewhere.
+    const nav = navigator as Navigator & { share?: (data: ShareData) => Promise<void> };
+    if (nav.share && /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent)) {
+      try {
+        await nav.share({
+          title: `${result.host} scored ${result.grade} on ${brand.name}`,
+          text: `${result.host} scored a security grade of ${result.grade} (${result.score}/100) on ${brand.name}. Check any site free:`,
+          url: link,
+        });
+        return;
+      } catch {
+        /* user cancelled or unsupported — fall back to copy */
+      }
+    }
     copy(link, "share");
   }
 

@@ -1,9 +1,18 @@
 import { brand, SITE_URL } from "@/lib/brand";
+import { FAQS } from "@/lib/faqs";
 
 export default function JsonLd() {
   const data = {
     "@context": "https://schema.org",
     "@graph": [
+      {
+        "@type": "FAQPage",
+        mainEntity: FAQS.map((f) => ({
+          "@type": "Question",
+          name: f.q,
+          acceptedAnswer: { "@type": "Answer", text: f.a },
+        })),
+      },
       {
         "@type": "WebApplication",
         name: brand.name,
