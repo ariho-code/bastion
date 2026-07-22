@@ -43,6 +43,9 @@ func (m *Module) Run(ctx context.Context, t *scan.Target, env *scan.Env) ([]scan
 	findings = append(findings, technologyFindings(p)...)
 	findings = append(findings, edgeFinding(p))
 	findings = append(findings, versionDisclosureFinding(p))
+	if lib := librariesFinding(p.body); lib != nil {
+		findings = append(findings, *lib)
+	}
 	return findings, nil
 }
 
@@ -284,4 +287,54 @@ func versionDisclosureFinding(p *probe) scan.Finding {
 		f.Detail = "No precise software versions are disclosed in response headers."
 	}
 	return f
+}
+
+// --- versioned front-end libraries -------------------------------------------
+
+// lib pairs a display name with a regex that captures a semver from a script
+// URL or filename (e.g. jquery-3.4.1.min.js, cdn/bootstrap@4.3.1, vue@2.6.11).
+// The emitted evidence ("jQuery 3.4.1") is what the risk brain parses to
+// correlate front-end components against known CVEs (curated DB + live OSV).
+type lib struct {
+	name string
+	re   *regexp.Regexp
+}
+
+var libraries = []lib{
+	{"jQuery", regexp.MustCompile(`(?i)jquery[@.\-/](\d+\.\d+\.\d+)`)},
+	{"Bootstrap", regexp.MustCompile(`(?i)bootstrap[@.\-/](\d+\.\d+\.\d+)`)},
+	{"AngularJS", regexp.MustCompile(`(?i)angular(?:js)?[@.\-/](\d+\.\d+\.\d+)`)},
+	{"Vue", regexp.MustCompile(`(?i)vue[@.\-/](\d+\.\d+\.\d+)`)},
+	{"React", regexp.MustCompile(`(?i)react(?:-dom)?[@.\-/](\d+\.\d+\.\d+)`)},
+	{"Lodash", regexp.MustCompile(`(?i)lodash[@.\-/](\d+\.\d+\.\d+)`)},
+	{"Moment", regexp.MustCompile(`(?i)moment[@.\-/](\d+\.\d+\.\d+)`)},
+	{"axios", regexp.MustCompile(`(?i)axios[@.\-/](\d+\.\d+\.\d+)`)},
+	{"Handlebars", regexp.MustCompile(`(?i)handlebars[@.\-/](\d+\.\d+\.\d+)`)},
+}
+
+func librariesFinding(body string) *scan.Finding {
+	if body == "" {
+		return nil
+	}
+	var parts []string
+	seen := map[string]bool{}
+	for _, l := range libraries {
+		if m := l.re.FindStringSubmatch(body); m != nil {
+			entry := l.name + " " + m[1]
+			if !seen[entry] {
+				seen[entry] = true
+				parts = append(parts, entry)
+			}
+		}
+	}
+	if len(parts) == 0 {
+		return nil
+	}
+	sort.Strings(parts)
+	return &scan.Finding{
+		ID: "surface.libraries", Category: scan.CategorySurface,
+		Title: "Front-end library versions", Status: scan.StatusInfo, Severity: scan.SeverityInfo,
+		Detail:   "Versioned front-end libraries were identified from the page. These are correlated against known CVEs in the risk analysis.",
+		Evidence: strings.Join(parts, " · "),
+	}
 }

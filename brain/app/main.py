@@ -11,7 +11,7 @@ from __future__ import annotations
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
-from . import engine_client
+from . import cve, engine_client, osv
 from .analyzer import analyze
 from .config import config
 from .models import AssessRequest, AssessResponse, RiskAnalysis, ScanResult
@@ -58,7 +58,8 @@ async def verify_endpoint(target: str) -> dict[str, object]:
 @app.post("/v1/analyze", response_model=RiskAnalysis)
 async def analyze_endpoint(scan: ScanResult) -> RiskAnalysis:
     """Analyze a ScanResult produced by the engine."""
-    return analyze(scan)
+    live = await osv.enrich(cve.detect(scan.findings))
+    return analyze(scan, extra_cves=live)
 
 
 @app.post("/v1/assess", response_model=AssessResponse)
@@ -69,5 +70,7 @@ async def assess_endpoint(req: AssessRequest) -> AssessResponse:
     except engine_client.EngineError as exc:
         raise HTTPException(status_code=exc.status, detail=str(exc)) from exc
 
-    analysis = analyze(ScanResult.model_validate(raw))
+    scan_result = ScanResult.model_validate(raw)
+    live = await osv.enrich(cve.detect(scan_result.findings))
+    analysis = analyze(scan_result, extra_cves=live)
     return AssessResponse(scan=raw, analysis=analysis)

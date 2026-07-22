@@ -117,7 +117,7 @@ def _priority(f: Finding) -> str:
     return f"P{rank}"
 
 
-def analyze(scan: ScanResult) -> RiskAnalysis:
+def analyze(scan: ScanResult, extra_cves: list[CVEMatch] | None = None) -> RiskAnalysis:
     findings = scan.findings
     open_issues = [f for f in findings if _is_open(f)]
 
@@ -129,7 +129,9 @@ def analyze(scan: ScanResult) -> RiskAnalysis:
     low = sum(1 for f in fails if f.severity == "low")
 
     # --- CVE correlation -----------------------------------------------------
-    cve_matches = cve.correlate(findings)
+    # `extra_cves` carries live advisories fetched by the async layer (OSV.dev);
+    # correlate merges them with the curated database.
+    cve_matches = cve.correlate(findings, extra=extra_cves)
 
     # --- risk index ----------------------------------------------------------
     # Known-vulnerable software is a strong, concrete risk signal, so it adds to

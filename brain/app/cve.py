@@ -39,7 +39,9 @@ VULN_DB: list[dict] = [
      "cves": ["multiple"], "summary": "Multiple XSS/SQLi fixes; keep core auto-updated."},
 ]
 
-# product -> regex capturing a version from evidence/detail text.
+# product -> regex capturing a version from evidence/detail text. Server-side
+# software comes from headers/banners; the JS libraries come from the engine's
+# fingerprint module, which surfaces versioned components (see surface.libraries).
 PRODUCT_PATTERNS: list[tuple[str, re.Pattern]] = [
     ("nginx", re.compile(r"nginx/(\d+\.\d+(?:\.\d+)?)", re.I)),
     ("apache", re.compile(r"apache(?:/| )(\d+\.\d+(?:\.\d+)?)", re.I)),
@@ -47,8 +49,16 @@ PRODUCT_PATTERNS: list[tuple[str, re.Pattern]] = [
     ("openssh", re.compile(r"openssh[_/](\d+\.\d+(?:p\d+)?(?:\.\d+)?)", re.I)),
     ("openssl", re.compile(r"openssl/(\d+\.\d+\.\d+[a-z]?)", re.I)),
     ("jquery", re.compile(r"jquery[-/ v]{0,3}(\d+\.\d+\.\d+)", re.I)),
-    ("bootstrap", re.compile(r"bootstrap[-/ v]{0,3}(\d+\.\d+\.\d+)", re.I)),
+    ("bootstrap", re.compile(r"bootstrap[-/ v@]{0,3}(\d+\.\d+\.\d+)", re.I)),
     ("wordpress", re.compile(r"wordpress[ /]?(\d+\.\d+(?:\.\d+)?)", re.I)),
+    # JS libraries OSV indexes on npm — enrichment turns these into live CVEs.
+    ("lodash", re.compile(r"lodash[-/ v@]{0,3}(\d+\.\d+\.\d+)", re.I)),
+    ("moment", re.compile(r"moment[-/ v@.]{0,3}(\d+\.\d+\.\d+)", re.I)),
+    ("axios", re.compile(r"axios[-/ v@]{0,3}(\d+\.\d+\.\d+)", re.I)),
+    ("handlebars", re.compile(r"handlebars[-/ v@.]{0,3}(\d+\.\d+\.\d+)", re.I)),
+    ("angular", re.compile(r"angular(?:js)?[-/ v@]{0,3}(\d+\.\d+\.\d+)", re.I)),
+    ("vue", re.compile(r"vue[-/ v@.]{0,3}(\d+\.\d+\.\d+)", re.I)),
+    ("react", re.compile(r"react(?:-dom)?[-/ v@]{0,3}(\d+\.\d+\.\d+)", re.I)),
 ]
 
 
@@ -61,7 +71,7 @@ def _is_older(detected: str, fixed: str) -> bool:
     return _version_tuple(detected) < _version_tuple(fixed)
 
 
-def _detect(findings: list[Finding]) -> dict[str, str]:
+def detect(findings: list[Finding]) -> dict[str, str]:
     """Return {product: version} extracted from finding text (first hit wins)."""
     found: dict[str, str] = {}
     for f in findings:
@@ -75,15 +85,24 @@ def _detect(findings: list[Finding]) -> dict[str, str]:
     return found
 
 
-def correlate(findings: list[Finding]) -> list[CVEMatch]:
-    """Match detected software versions against the vulnerability database."""
-    detected = _detect(findings)
-    matches: list[CVEMatch] = []
+_SEVERITY_ORDER = {"critical": 0, "high": 1, "medium": 2, "low": 3, "info": 4}
+
+
+def correlate(findings: list[Finding], extra: list[CVEMatch] | None = None) -> list[CVEMatch]:
+    """Correlate detected software with known vulnerabilities.
+
+    The curated ``VULN_DB`` is the deterministic base; ``extra`` carries live
+    advisories (e.g. from OSV.dev) to merge in. Matches are de-duplicated by CVE
+    id — the curated entry wins on overlap because its summary is hand-written —
+    while genuinely new advisories from the live feed are kept.
+    """
+    curated: list[CVEMatch] = []
+    detected = detect(findings)
     for entry in VULN_DB:
         product = entry["product"]
         version = detected.get(product)
         if version and _is_older(version, entry["fixed_in"]):
-            matches.append(
+            curated.append(
                 CVEMatch(
                     product=product,
                     version=version,
@@ -91,9 +110,17 @@ def correlate(findings: list[Finding]) -> list[CVEMatch]:
                     severity=entry["severity"],
                     cves=entry["cves"],
                     summary=entry["summary"],
+                    source="curated",
                 )
             )
-    # Worst first.
-    order = {"critical": 0, "high": 1, "medium": 2, "low": 3, "info": 4}
-    matches.sort(key=lambda m: order.get(m.severity, 4))
-    return matches
+
+    merged: list[CVEMatch] = []
+    seen_cves: set[str] = set()
+    for m in curated + (extra or []):  # curated first so it wins on overlap
+        ids = {c for c in m.cves if c.upper().startswith("CVE-")}
+        if ids and ids & seen_cves:
+            continue
+        merged.append(m)
+        seen_cves |= ids
+    merged.sort(key=lambda m: _SEVERITY_ORDER.get(m.severity, 4))
+    return merged

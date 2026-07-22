@@ -29,6 +29,15 @@ class Config:
             o.strip() for o in os.getenv("ALLOWED_ORIGINS", "*").split(",") if o.strip()
         ]
         self.engine_timeout: float = float(os.getenv("ENGINE_TIMEOUT", "90"))
+
+        # Live vulnerability feed (OSV.dev). Enrichment is best-effort: if the
+        # feed is disabled, slow, or unreachable, the curated database still
+        # produces results, so a scan never depends on it.
+        self.osv_enabled: bool = os.getenv("OSV_ENABLED", "true").strip().lower() not in ("0", "false", "no")
+        self.osv_url: str = _normalize_url(os.getenv("OSV_URL", "https://api.osv.dev"))
+        self.osv_timeout: float = float(os.getenv("OSV_TIMEOUT", "6"))
+        self.osv_cache_ttl: float = float(os.getenv("OSV_CACHE_TTL", "21600"))  # 6h
+
         self.version: str = "0.1.0"
 
 

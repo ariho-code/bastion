@@ -80,6 +80,8 @@ class CVEMatch(BaseModel):
     severity: Severity
     cves: list[str]
     summary: str
+    source: str = "curated"  # "curated" (built-in DB) or "osv" (live OSV.dev feed)
+    url: str | None = None  # advisory link, when available (OSV)
 
 
 class RiskAnalysis(BaseModel):
