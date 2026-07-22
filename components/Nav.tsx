@@ -14,6 +14,7 @@ export default function Nav() {
         <nav className="nav-links">
           <a href="/#how">How it works</a>
           <a href="/#pricing">Pricing</a>
+          <Link href="/docs">API</Link>
           <a href="/#faq">FAQ</a>
           <a href="/#scan" className="nav-cta">
             Scan a site

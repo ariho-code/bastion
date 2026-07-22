@@ -1756,3 +1756,87 @@ h3 {
     max-width: none;
   }
 }
+
+/* ---------------- API docs ---------------- */
+.docs h2 {
+  font-size: 22px;
+  margin: 36px 0 12px;
+}
+.docs h3 {
+  font-size: 15px;
+  color: var(--text-2);
+  margin: 20px 0 8px;
+  font-family: var(--mono);
+  font-weight: 500;
+}
+.docs-lead {
+  font-size: 17px !important;
+  color: var(--text) !important;
+  margin-bottom: 8px;
+}
+.docs-endpoint {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 16px;
+}
+.docs-method {
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 700;
+  padding: 3px 9px;
+  border-radius: 6px;
+  letter-spacing: 0.04em;
+}
+.docs-method-get {
+  background: rgba(34, 197, 94, 0.14);
+  color: var(--pass);
+}
+.docs-method-post {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.docs-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 12px 0 8px;
+  font-size: 14px;
+  display: block;
+  overflow-x: auto;
+}
+.docs-table th,
+.docs-table td {
+  border: 1px solid var(--border);
+  padding: 10px 14px;
+  text-align: left;
+  color: var(--text-2);
+}
+.docs-table th {
+  background: var(--bg-2);
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 12.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.docs-cta {
+  margin-top: 44px;
+  background: linear-gradient(135deg, rgba(45, 212, 191, 0.12), rgba(34, 211, 238, 0.06));
+  border: 1px solid rgba(45, 212, 191, 0.28);
+  border-radius: 16px;
+  padding: 26px 28px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+.docs-cta strong {
+  display: block;
+  font-size: 17px;
+  margin-bottom: 4px;
+}
+.docs-cta span {
+  color: var(--text-2);
+  font-size: 14.5px;
+}
