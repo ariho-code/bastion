@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { brand } from "@/lib/brand";
+import { TOOLS } from "@/lib/tools";
 
 export default function Footer() {
   return (
@@ -20,6 +21,15 @@ export default function Footer() {
             <a href="/#pricing">Pricing</a>
             <Link href="/docs">API</Link>
             <a href="/#faq">FAQ</a>
+          </div>
+          <div className="footer-col">
+            <span className="footer-h">Free tools</span>
+            <Link href="/tools">All tools</Link>
+            {TOOLS.slice(0, 5).map((t) => (
+              <Link key={t.slug} href={`/tools/${t.slug}`}>
+                {t.name}
+              </Link>
+            ))}
           </div>
           <div className="footer-col">
             <span className="footer-h">Legal</span>
