@@ -824,11 +824,28 @@ h3 {
 
 .how,
 .features,
+.capabilities,
 .pricing,
 .faq {
   max-width: var(--maxw);
   margin: 0 auto;
   padding: 76px 22px;
+}
+.capabilities {
+  padding-top: 20px;
+}
+.feature-link {
+  display: inline-block;
+  margin-top: 10px;
+  color: var(--accent);
+  font-size: 13.5px;
+  font-weight: 600;
+}
+.feature-link-card {
+  cursor: pointer;
+}
+.feature-link-card:hover {
+  border-color: var(--accent);
 }
 
 .steps {

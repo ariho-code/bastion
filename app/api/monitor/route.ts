@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { runScan, ScanError } from "@/lib/scanner/engine";
 import { emailConfigured, sendMonitorConfirm } from "@/lib/email";
-import { kvConfigured, addMonitor, saveMonitor, removeMonitor } from "@/lib/monitor";
+import { addMonitor, saveMonitor, removeMonitor } from "@/lib/monitor";
 import { rateLimit } from "@/lib/ratelimit";
 import { SITE_URL, brand } from "@/lib/brand";
 
@@ -23,12 +23,10 @@ const unsubUrl = (id: string) => `${SITE_URL}/api/monitor?unsubscribe=${id}`;
 export async function GET(req: NextRequest) {
   const id = req.nextUrl.searchParams.get("unsubscribe");
   if (!id) return NextResponse.json({ error: "Missing unsubscribe id." }, { status: 400 });
-  if (kvConfigured()) {
-    try {
-      await removeMonitor(id);
-    } catch {
-      /* ignore */
-    }
+  try {
+    await removeMonitor(id);
+  } catch {
+    /* ignore */
   }
   const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Unsubscribed</title></head>
 <body style="margin:0;font-family:system-ui,sans-serif;background:#0a0e14;color:#e7eef5;display:flex;min-height:100vh;align-items:center;justify-content:center;text-align:center;">
@@ -40,9 +38,9 @@ export async function GET(req: NextRequest) {
 
 // Subscribe a site to daily monitoring.
 export async function POST(req: NextRequest) {
-  if (!emailConfigured() || !kvConfigured()) {
+  if (!emailConfigured()) {
     return NextResponse.json(
-      { error: "Monitoring isn't enabled on the server yet." },
+      { error: "Monitoring needs email delivery configured on the server." },
       { status: 503 }
     );
   }

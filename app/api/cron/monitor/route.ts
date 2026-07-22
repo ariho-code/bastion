@@ -1,12 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { runScan } from "@/lib/scanner/engine";
-import {
-  kvConfigured,
-  listMonitorIds,
-  getMonitor,
-  saveMonitor,
-  gradeDropped,
-} from "@/lib/monitor";
+import { listMonitorIds, getMonitor, saveMonitor, gradeDropped } from "@/lib/monitor";
 import { sendMonitorAlert } from "@/lib/email";
 import { SITE_URL } from "@/lib/brand";
 
@@ -26,9 +20,6 @@ export async function GET(req: NextRequest) {
   const q = req.nextUrl.searchParams.get("secret") || "";
   if (auth !== `Bearer ${secret}` && q !== secret) {
     return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
-  }
-  if (!kvConfigured()) {
-    return NextResponse.json({ ok: true, skipped: "kv-not-configured" });
   }
 
   const ids = (await listMonitorIds()).slice(0, MONITORS_PER_RUN);

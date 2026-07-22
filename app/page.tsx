@@ -1,9 +1,19 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import ScannerApp from "@/components/ScannerApp";
 import Pricing from "@/components/Pricing";
 import Faq from "@/components/Faq";
 import Icon, { type IconName } from "@/components/Icon";
 import { brand } from "@/lib/brand";
+
+const CAPABILITIES: { icon: IconName; title: string; body: string; href?: string }[] = [
+  { icon: "gauge", title: "Instant A–F grade", body: "Paste a URL and get a full security report in seconds — no login, no install." },
+  { icon: "shield-check", title: "28 deep checks", body: "TLS, response headers, DNSSEC, email authentication, cookies and live mixed-content." },
+  { icon: "file-text", title: "Branded PDF reports", body: "Export a clean, client-ready PDF for any scan in a single click." },
+  { icon: "send", title: "Email reports", body: "Send the full report and PDF straight to any inbox — free." },
+  { icon: "bell", title: "Daily monitoring & alerts", body: "Auto re-scan your sites and get emailed the instant a grade drops." },
+  { icon: "code", title: "REST API", body: "Automate scans in CI/CD and fail builds that fall below an A.", href: "/docs" },
+];
 
 type SearchParams = Record<string, string | string[] | undefined>;
 
@@ -171,6 +181,41 @@ export default function Page() {
               <p>{c.body}</p>
             </article>
           ))}
+        </div>
+      </section>
+
+      {/* Capabilities — what the product does */}
+      <section id="platform" className="capabilities">
+        <div className="section-head">
+          <span className="eyebrow">The platform</span>
+          <h2>Not just a scan — a security workflow</h2>
+          <p>
+            From a one-off check to continuous, automated protection across your whole portfolio —
+            with reports your clients will actually read.
+          </p>
+        </div>
+        <div className="feature-grid">
+          {CAPABILITIES.map((c) => {
+            const inner = (
+              <>
+                <div className="feature-icon" aria-hidden="true">
+                  <Icon name={c.icon} size={22} />
+                </div>
+                <h3>{c.title}</h3>
+                <p>{c.body}</p>
+                {c.href && <span className="feature-link">Learn more →</span>}
+              </>
+            );
+            return c.href ? (
+              <Link key={c.title} href={c.href} className="feature feature-link-card">
+                {inner}
+              </Link>
+            ) : (
+              <article key={c.title} className="feature">
+                {inner}
+              </article>
+            );
+          })}
         </div>
       </section>
 

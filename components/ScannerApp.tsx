@@ -56,6 +56,13 @@ function bumpQuota(): void {
     /* noop */
   }
 }
+function isPro(): boolean {
+  try {
+    return localStorage.getItem("bastion:pro") === "1";
+  } catch {
+    return false;
+  }
+}
 
 interface HistoryItem {
   host: string;
@@ -90,9 +97,16 @@ export default function ScannerApp() {
     }
   }, []);
 
-  // Deep-link: ?url=example.com auto-runs a scan
+  // Deep-link: ?url=example.com auto-runs a scan; ?pro=1 unlocks unlimited (for testing)
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
+    if (params.get("pro") === "1") {
+      try {
+        localStorage.setItem("bastion:pro", "1");
+      } catch {
+        /* noop */
+      }
+    }
     const q = params.get("url");
     if (q) {
       setUrl(q);
@@ -129,8 +143,8 @@ export default function ScannerApp() {
       const t = (target ?? url).trim();
       if (!t || loading) return;
 
-      // Free-tier gate.
-      if (getQuota() >= FREE_SCAN_LIMIT) {
+      // Free-tier gate (bypassed in Pro / ?pro=1 test mode).
+      if (!isPro() && getQuota() >= FREE_SCAN_LIMIT) {
         setModalReason(
           `You've used all ${FREE_SCAN_LIMIT} free scans today. Upgrade to Pro for unlimited scans and monitoring.`
         );
@@ -429,15 +443,15 @@ export default function ScannerApp() {
           {/* Conversion band */}
           <div className="upsell">
             <div className="upsell-text">
-              <strong>Keep {result.host} secure — automatically.</strong>
+              <strong>Ship security into your workflow.</strong>
               <span>
-                {brand.name} Pro re-scans your sites on a schedule, emails you the moment a grade drops,
-                and exports white-label reports for clients.
+                Automate scans with the {brand.name} REST API, monitor your whole portfolio, and hand
+                clients white-label PDF reports.
               </span>
             </div>
-            <button className="upsell-btn" onClick={() => openUpgrade()}>
-              Start monitoring <Icon name="arrow-right" size={16} />
-            </button>
+            <a className="upsell-btn" href="/docs">
+              Explore the API <Icon name="arrow-right" size={16} />
+            </a>
           </div>
         </section>
       )}

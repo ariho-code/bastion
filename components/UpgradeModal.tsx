@@ -5,11 +5,11 @@ import { brand } from "@/lib/brand";
 import Icon, { type IconName } from "./Icon";
 
 const BENEFITS: { icon: IconName; text: string }[] = [
-  { icon: "refresh", text: "Continuous monitoring & daily automatic re-scans" },
-  { icon: "bell", text: "Instant email alerts the moment a grade drops" },
-  { icon: "users", text: "Bulk-scan your whole portfolio in one click" },
+  { icon: "users", text: "Bulk-scan your entire portfolio in one click" },
   { icon: "file-text", text: "White-label PDF reports with your own logo" },
-  { icon: "code", text: "REST API access for CI/CD security gates" },
+  { icon: "activity", text: "Cloud history & score trends over time" },
+  { icon: "code", text: "Higher API rate limits for CI/CD at scale" },
+  { icon: "bell", text: "Priority support & onboarding" },
 ];
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
