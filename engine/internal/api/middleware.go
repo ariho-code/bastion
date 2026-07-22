@@ -65,7 +65,10 @@ func (s *Server) withLogging(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
 		sw := &statusWriter{ResponseWriter: w, status: 200}
+		s.metrics.IncInFlight()
 		next.ServeHTTP(sw, r)
+		s.metrics.DecInFlight()
+		s.metrics.ObserveRequest(sw.status)
 		entry := map[string]any{
 			"level":      "info",
 			"ts":         start.UTC().Format(time.RFC3339),
@@ -160,6 +163,7 @@ func (s *Server) withRateLimit(next http.Handler) http.Handler {
 		h.Set("X-RateLimit-Remaining", strconv.Itoa(res.remaining))
 		h.Set("X-RateLimit-Reset", strconv.Itoa(res.resetSec))
 		if !res.allowed {
+			s.metrics.IncRateLimited()
 			h.Set("Retry-After", strconv.Itoa(res.resetSec))
 			writeError(w, http.StatusTooManyRequests, "rate limit exceeded, slow down")
 			return
@@ -187,10 +191,8 @@ func (s *Server) tierLimit(t auth.Tier) int {
 func (s *Server) clientIP(r *http.Request) string {
 	if s.cfg.TrustedProxy {
 		if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
-			if i := strings.IndexByte(xff, ','); i >= 0 {
-				return strings.TrimSpace(xff[:i])
-			}
-			return strings.TrimSpace(xff)
+			first, _, _ := strings.Cut(xff, ",")
+			return strings.TrimSpace(first)
 		}
 	}
 	host, _, err := net.SplitHostPort(r.RemoteAddr)
@@ -271,17 +273,11 @@ func (l *rateLimiter) take(key string, rpm int) limitResult {
 
 	if b.tokens < 1 {
 		// Seconds until one token is available.
-		reset := int((1 - b.tokens) / rate)
-		if reset < 1 {
-			reset = 1
-		}
+		reset := max(int((1-b.tokens)/rate), 1)
 		return limitResult{allowed: false, remaining: 0, resetSec: reset}
 	}
 	b.tokens--
 	// Seconds until the bucket is full again.
-	reset := int((capacity - b.tokens) / rate)
-	if reset < 1 {
-		reset = 1
-	}
+	reset := max(int((capacity-b.tokens)/rate), 1)
 	return limitResult{allowed: true, remaining: int(b.tokens), resetSec: reset}
 }

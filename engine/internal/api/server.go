@@ -9,6 +9,7 @@ import (
 
 	"github.com/ariho-code/bastionscan/engine/internal/auth"
 	"github.com/ariho-code/bastionscan/engine/internal/config"
+	"github.com/ariho-code/bastionscan/engine/internal/metrics"
 	"github.com/ariho-code/bastionscan/engine/internal/netutil"
 	"github.com/ariho-code/bastionscan/engine/internal/scan"
 )
@@ -20,6 +21,7 @@ type Server struct {
 	engine  *scan.Engine
 	auth    *auth.Authenticator
 	limiter *rateLimiter
+	metrics *metrics.Metrics
 	started time.Time
 }
 
@@ -35,6 +37,7 @@ func NewServer(cfg config.Config) *Server {
 		}),
 		auth:    auth.New(cfg.APIKeys, cfg.APIRequireKey),
 		limiter: newRateLimiter(),
+		metrics: metrics.New(),
 		started: time.Now(),
 	}
 }
@@ -47,6 +50,7 @@ func NewServer(cfg config.Config) *Server {
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", s.handleHealth)
+	mux.HandleFunc("GET /metrics", s.handleMetrics)
 	mux.HandleFunc("GET /v1/modules", s.handleModules)
 	mux.HandleFunc("POST /v1/scan", s.handleScan)
 	mux.HandleFunc("GET /v1/scan", s.handleScan) // convenience for ?target=

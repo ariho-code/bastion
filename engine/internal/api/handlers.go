@@ -22,6 +22,12 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// handleMetrics exposes engine telemetry in Prometheus exposition format.
+func (s *Server) handleMetrics(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
+	s.metrics.WritePrometheus(w)
+}
+
 // handleModules lists every registered scanner module. This makes the engine's
 // capabilities self-describing — the frontend can render them without a
 // hardcoded list.
@@ -56,12 +62,14 @@ func (s *Server) handleScan(w http.ResponseWriter, r *http.Request) {
 
 	target, err := scan.NewTarget(req.Target)
 	if err != nil {
+		s.metrics.IncScanError()
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 	target.Verified = req.Verified
 
 	if err := s.guard.Check(r.Context(), target.Host); err != nil {
+		s.metrics.IncScanError()
 		writeError(w, http.StatusForbidden, err.Error())
 		return
 	}
@@ -73,6 +81,8 @@ func (s *Server) handleScan(w http.ResponseWriter, r *http.Request) {
 		UserAgent: "BastionscanEngine/" + scan.EngineVersion + " (+https://bastionscan.com)",
 	}
 	result := s.engine.Run(r.Context(), target, profile, env)
+	s.metrics.IncScan()
+	s.metrics.ObserveScan(float64(result.DurationMs) / 1000.0)
 	writeJSON(w, http.StatusOK, result)
 }
 
