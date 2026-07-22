@@ -35,3 +35,14 @@ next-env.d.ts
 
 # editor / local tooling
 .claude/
+
+# python (brain service)
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+venv/
+
+# go (engine) build artifacts
+engine/engine
+/engine-bin

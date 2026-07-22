@@ -1,0 +1,102 @@
+"""Pydantic models shared by the Bastionscan analysis brain.
+
+The engine's ScanResult is mirrored loosely (extra fields allowed) so the brain
+keeps working even as the Go engine grows new fields.
+"""
+
+from __future__ import annotations
+
+from typing import Any, Literal
+
+from pydantic import BaseModel, ConfigDict, Field
+
+Status = Literal["pass", "warn", "fail", "info"]
+Severity = Literal["critical", "high", "medium", "low", "info"]
+
+
+class Finding(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    id: str = ""
+    module: str = ""
+    category: str = ""
+    title: str = ""
+    status: Status = "info"
+    severity: Severity = "info"
+    points: int = 0
+    maxPoints: int = 0
+    detail: str = ""
+    fix: str | None = None
+    reference: str | None = None
+    evidence: str | None = None
+
+
+class CategoryScore(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    category: str
+    label: str = ""
+    score: int = 0
+
+
+class ScanResult(BaseModel):
+    """Loose mirror of the Go engine's scan result."""
+
+    model_config = ConfigDict(extra="allow")
+
+    target: str = ""
+    host: str = ""
+    domain: str = ""
+    profile: str = ""
+    grade: str = ""
+    score: int = 0
+    categories: list[CategoryScore] = Field(default_factory=list)
+    findings: list[Finding] = Field(default_factory=list)
+
+
+class RemediationItem(BaseModel):
+    priority: str  # P1..P4
+    severity: Severity
+    category: str
+    title: str
+    detail: str
+    fix: str | None = None
+    reference: str | None = None
+    effort: str  # Quick / Moderate / Involved
+    points_lost: int
+
+
+class CategoryRisk(BaseModel):
+    category: str
+    label: str
+    risk: int  # 0..100 (higher = worse)
+    open_issues: int
+
+
+class RiskAnalysis(BaseModel):
+    target: str
+    grade: str
+    score: int
+    risk_index: int  # 0..100 (higher = more risk)
+    risk_level: str  # Minimal / Low / Medium / High / Critical
+    headline: str
+    summary: list[str]
+    strengths: list[str]
+    critical_count: int
+    high_count: int
+    medium_count: int
+    low_count: int
+    category_risk: list[CategoryRisk]
+    remediation: list[RemediationItem]
+    generated_by: str = "bastionscan-brain"
+
+
+class AssessRequest(BaseModel):
+    target: str
+    profile: str = "standard"
+    verified: bool = False
+
+
+class AssessResponse(BaseModel):
+    scan: dict[str, Any]
+    analysis: RiskAnalysis
