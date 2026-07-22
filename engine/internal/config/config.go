@@ -18,8 +18,18 @@ type Config struct {
 	MaxConcurrency int           // parallel modules per scan
 	ModuleTimeout  time.Duration // per-module deadline
 	ScanTimeout    time.Duration // whole-scan deadline
-	RateLimitRPM   int           // requests per minute per client IP (0 = off)
 	MaxCipherTests int           // cap on TLS cipher probes per scan
+
+	// --- API auth & rate limiting -------------------------------------------
+	APIKeys       map[string]string // key -> tier (from API_KEYS)
+	APIRequireKey bool              // reject anonymous calls on protected routes
+	TrustedProxy  bool              // honor X-Forwarded-For (only behind a trusted LB)
+
+	// Per-tier request/minute limits (0 disables limiting for that tier).
+	RateLimitRPM       int // anonymous
+	RateLimitRPMFree   int
+	RateLimitRPMPro    int
+	RateLimitRPMAgency int
 }
 
 // Load reads configuration from the environment, applying defaults.
@@ -31,9 +41,31 @@ func Load() Config {
 		MaxConcurrency: envInt("MAX_CONCURRENCY", 8),
 		ModuleTimeout:  envDur("MODULE_TIMEOUT", 20*time.Second),
 		ScanTimeout:    envDur("SCAN_TIMEOUT", 60*time.Second),
-		RateLimitRPM:   envInt("RATE_LIMIT_RPM", 60),
 		MaxCipherTests: envInt("MAX_CIPHER_TESTS", 40),
+
+		APIKeys:       parseAPIKeys(env("API_KEYS", "")),
+		APIRequireKey: envBool("API_REQUIRE_KEY", false),
+		TrustedProxy:  envBool("TRUSTED_PROXY", false),
+
+		RateLimitRPM:       envInt("RATE_LIMIT_RPM", 60),
+		RateLimitRPMFree:   envInt("RATE_LIMIT_RPM_FREE", 120),
+		RateLimitRPMPro:    envInt("RATE_LIMIT_RPM_PRO", 600),
+		RateLimitRPMAgency: envInt("RATE_LIMIT_RPM_AGENCY", 3000),
 	}
+}
+
+// parseAPIKeys parses "key1:tier1,key2:tier2" into a key->tier map.
+func parseAPIKeys(s string) map[string]string {
+	out := map[string]string{}
+	for _, pair := range splitCSV(s) {
+		key, tier, ok := strings.Cut(pair, ":")
+		key = strings.TrimSpace(key)
+		if !ok || key == "" {
+			continue
+		}
+		out[key] = strings.TrimSpace(tier)
+	}
+	return out
 }
 
 func env(key, def string) string {

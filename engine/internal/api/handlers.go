@@ -13,11 +13,12 @@ import (
 // handleHealth reports liveness plus a snapshot of engine capabilities.
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{
-		"status":    "ok",
-		"version":   scan.EngineVersion,
-		"modules":   len(scan.Modules()),
-		"uptimeSec": int(time.Since(s.started).Seconds()),
-		"time":      time.Now().UTC(),
+		"status":       "ok",
+		"version":      scan.EngineVersion,
+		"modules":      len(scan.Modules()),
+		"uptimeSec":    int(time.Since(s.started).Seconds()),
+		"authRequired": s.auth.RequireKey(),
+		"time":         time.Now().UTC(),
 	})
 }
 

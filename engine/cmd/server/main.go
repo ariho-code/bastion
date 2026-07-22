@@ -32,7 +32,9 @@ import (
 )
 
 func main() {
-	log.SetFlags(log.LstdFlags | log.LUTC)
+	// Structured JSON logging: each line is a self-contained JSON object with
+	// its own timestamp, so no stdlib prefix.
+	log.SetFlags(0)
 	cfg := config.Load()
 
 	srv := &http.Server{
@@ -43,10 +45,10 @@ func main() {
 	}
 
 	go func() {
-		log.Printf("bastionscan-engine v%s listening on :%s (%d modules registered)",
+		log.Printf(`{"level":"info","msg":"listening","version":%q,"port":%q,"modules":%d}`,
 			scan.EngineVersion, cfg.Port, len(scan.Modules()))
 		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			log.Fatalf("server error: %v", err)
+			log.Fatalf(`{"level":"fatal","msg":"server error","err":%q}`, err.Error())
 		}
 	}()
 
@@ -54,11 +56,11 @@ func main() {
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
 	<-stop
-	log.Println("shutting down…")
+	log.Println(`{"level":"info","msg":"shutting down"}`)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 	if err := srv.Shutdown(ctx); err != nil {
-		log.Printf("graceful shutdown failed: %v", err)
+		log.Printf(`{"level":"warn","msg":"graceful shutdown failed","err":%q}`, err.Error())
 	}
 }

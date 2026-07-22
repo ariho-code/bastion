@@ -63,8 +63,31 @@ All via environment variables (with safe defaults):
 | `MAX_CONCURRENCY` | `8`     | Parallel modules per scan                |
 | `MODULE_TIMEOUT`  | `20s`   | Per-module deadline                      |
 | `SCAN_TIMEOUT`    | `60s`   | Whole-scan deadline                      |
-| `RATE_LIMIT_RPM`  | `60`    | Per-IP requests/min (`0` disables)       |
 | `MAX_CIPHER_TESTS`| `40`    | Cap on TLS cipher probes                 |
+| `API_KEYS`        | —       | `key:tier,…` (tier = `free`\|`pro`\|`agency`) |
+| `API_REQUIRE_KEY` | `false` | Reject anonymous calls to `/v1/scan`     |
+| `TRUSTED_PROXY`   | `false` | Honor `X-Forwarded-For` (only behind a trusted LB) |
+| `RATE_LIMIT_RPM`  | `60`    | Anonymous per-client requests/min (`0` disables) |
+| `RATE_LIMIT_RPM_FREE` | `120`   | `free` tier requests/min             |
+| `RATE_LIMIT_RPM_PRO`  | `600`   | `pro` tier requests/min              |
+| `RATE_LIMIT_RPM_AGENCY` | `3000` | `agency` tier requests/min          |
+
+## Security & hardening
+
+The engine is built to be exposed publicly and abused-at:
+
+- **Tiered API keys** — pass `Authorization: Bearer <key>` or `X-API-Key`. Keys
+  are matched in constant time; tiers carry their own rate limits. Set
+  `API_REQUIRE_KEY=true` to lock down `/v1/scan`.
+- **Per-tier rate limiting** with standard `X-RateLimit-Limit`,
+  `X-RateLimit-Remaining`, `X-RateLimit-Reset` and `Retry-After` (429) headers,
+  keyed by API key (or client IP when anonymous).
+- **Security response headers** on every response (CSP, HSTS, `nosniff`,
+  `X-Frame-Options: DENY`, Referrer-Policy, Permissions-Policy) — the scanner
+  dogfoods the controls it audits.
+- **SSRF guard + TOCTOU-safe dialing**, **request IDs** (`X-Request-ID`), and
+  **structured JSON access logs** for correlation.
+- `TRUSTED_PROXY` gates `X-Forwarded-For` so rate-limit keys can't be spoofed.
 
 ## Modules
 
