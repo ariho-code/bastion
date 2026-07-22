@@ -24,6 +24,9 @@ type Identity struct {
 	Tier Tier
 	// KeyID is a short, non-secret prefix of the API key for logging/attribution.
 	KeyID string
+	// Tenant is the owning tenant/organization id, when multi-tenant. Empty for
+	// anonymous or single-tenant deployments.
+	Tenant string
 }
 
 // Authenticator validates API keys in constant time and decides whether

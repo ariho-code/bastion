@@ -2,7 +2,6 @@ package api
 
 import (
 	"encoding/json"
-	"log"
 	"net"
 	"net/http"
 	"strconv"
@@ -10,6 +9,8 @@ import (
 	"time"
 
 	"github.com/ariho-code/bastionscan/engine/internal/abuse"
+	"github.com/ariho-code/bastionscan/engine/internal/audit"
+	"github.com/ariho-code/bastionscan/engine/internal/auth"
 	"github.com/ariho-code/bastionscan/engine/internal/scan"
 	"github.com/ariho-code/bastionscan/engine/internal/verify"
 )
@@ -133,25 +134,95 @@ func (s *Server) handleScan(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, result)
 }
 
-// auditScan emits a structured audit-trail line for every completed scan —
-// distinct from the access log, and the record you'd keep for compliance.
+// auditScan seals a completed scan into the tamper-evident audit chain. This is
+// the compliance record — cryptographically linked to every prior event, so any
+// after-the-fact edit or deletion is detectable — distinct from the access log.
 func (s *Server) auditScan(r *http.Request, t *scan.Target, p scan.Profile, res *scan.ScanResult) {
-	entry := map[string]any{
-		"level":      "audit",
-		"event":      "scan",
-		"target":     t.Host,
-		"profile":    p.Name,
-		"grade":      res.Grade,
-		"score":      res.Score,
-		"dur_ms":     res.DurationMs,
-		"ip":         s.clientIP(r),
-		"tier":       string(identityFrom(r.Context()).Tier),
-		"request_id": requestIDFrom(r.Context()),
-		"ts":         time.Now().UTC().Format(time.RFC3339),
+	id := identityFrom(r.Context())
+	s.audit.Append(audit.Record{
+		Event:     "scan",
+		Action:    r.Method + " " + r.URL.Path,
+		Outcome:   "success",
+		Actor:     actorOf(id),
+		Tenant:    id.Tenant,
+		Tier:      string(id.Tier),
+		SourceIP:  s.clientIP(r),
+		RequestID: requestIDFrom(r.Context()),
+		Target:    t.Host,
+		Severity:  audit.SevNotice,
+		Metadata: map[string]any{
+			"profile": p.Name,
+			"grade":   res.Grade,
+			"score":   res.Score,
+			"dur_ms":  res.DurationMs,
+		},
+	})
+}
+
+// auditEvent records a non-scan security event (e.g. a denied request).
+func (s *Server) auditEvent(r *http.Request, event, outcome string, sev audit.Severity, meta map[string]any) {
+	id := identityFrom(r.Context())
+	s.audit.Append(audit.Record{
+		Event:     event,
+		Action:    r.Method + " " + r.URL.Path,
+		Outcome:   outcome,
+		Actor:     actorOf(id),
+		Tenant:    id.Tenant,
+		Tier:      string(id.Tier),
+		SourceIP:  s.clientIP(r),
+		RequestID: requestIDFrom(r.Context()),
+		Severity:  sev,
+		Metadata:  meta,
+	})
+}
+
+func actorOf(id auth.Identity) string {
+	if id.KeyID != "" {
+		return id.KeyID
 	}
-	if b, err := json.Marshal(entry); err == nil {
-		log.Println(string(b))
+	return string(id.Tier)
+}
+
+// handleAudit exposes the audit chain for SIEM export and integrity checks.
+// It returns the chain head (seq + hash — publish this to a WORM store to anchor
+// the whole history), a self-verification result, and recent entries. Entries
+// can be rendered as RFC 5424 syslog with ?format=rfc5424.
+func (s *Server) handleAudit(w http.ResponseWriter, r *http.Request) {
+	id := identityFrom(r.Context())
+	// Admin-only: agency tier, or any authenticated caller in dev.
+	if !s.cfg.AllowPrivate && id.Tier != auth.TierAgency {
+		s.auditEvent(r, "audit.access.denied", "denied", audit.SevWarning, nil)
+		writeError(w, http.StatusForbidden, "audit access requires an agency-tier key")
+		return
 	}
+
+	limit := 100
+	if v := r.URL.Query().Get("limit"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			limit = n
+		}
+	}
+	entries := s.audit.Recent(limit)
+	seq, head := s.audit.Head()
+	ok, brokenAt := s.audit.Verify()
+
+	if r.URL.Query().Get("format") == "rfc5424" {
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		for _, e := range entries {
+			_, _ = w.Write([]byte(s.audit.RFC5424(e) + "\n"))
+		}
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"headSeq":    seq,
+		"headHash":   head,
+		"verified":   ok,
+		"brokenAt":   brokenAt,
+		"count":      len(entries),
+		"entries":    entries,
+		"exportHint": "Each entry is one JSON object; stream stdout to Splunk/Datadog, or fetch ?format=rfc5424.",
+	})
 }
 
 func parseScanRequest(r *http.Request) (scanRequest, error) {

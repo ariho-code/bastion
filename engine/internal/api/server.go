@@ -5,9 +5,11 @@ package api
 import (
 	"encoding/json"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/ariho-code/bastionscan/engine/internal/abuse"
+	"github.com/ariho-code/bastionscan/engine/internal/audit"
 	"github.com/ariho-code/bastionscan/engine/internal/auth"
 	"github.com/ariho-code/bastionscan/engine/internal/config"
 	"github.com/ariho-code/bastionscan/engine/internal/metrics"
@@ -24,6 +26,7 @@ type Server struct {
 	limiter  *rateLimiter
 	cooldown *abuse.Cooldown
 	metrics  *metrics.Metrics
+	audit    *audit.Log
 	started  time.Time
 }
 
@@ -47,8 +50,17 @@ func NewServer(cfg config.Config) *Server {
 		limiter:  newRateLimiter(),
 		cooldown: abuse.NewCooldown(cooldownWindow),
 		metrics:  metrics.New(),
+		audit:    audit.New(os.Stdout, hostname(), "bastionscan-engine", cfg.AuditRing),
 		started:  time.Now(),
 	}
+}
+
+// hostname returns the machine hostname for audit records, tolerant of failure.
+func hostname() string {
+	if h, err := os.Hostname(); err == nil && h != "" {
+		return h
+	}
+	return "-"
 }
 
 // Handler returns the fully-wrapped HTTP handler (routes + middleware).
@@ -65,6 +77,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /v1/verify", s.handleVerify)
 	mux.HandleFunc("POST /v1/scan", s.handleScan)
 	mux.HandleFunc("GET /v1/scan", s.handleScan) // convenience for ?target=
+	mux.HandleFunc("GET /v1/audit", s.handleAudit)
 
 	h := http.Handler(mux)
 	h = s.withRateLimit(h)
