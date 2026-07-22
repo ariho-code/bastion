@@ -41,6 +41,7 @@ export default function Nav() {
           <Link href="/developers">
             <T k="nav.api" />
           </Link>
+          <Link href="/scam-check">Scam check</Link>
           <Link href="/advanced">Advanced</Link>
           <a href="/#faq">
             <T k="nav.faq" />
@@ -74,6 +75,9 @@ export default function Nav() {
         </a>
         <Link href="/developers" onClick={close}>
           <T k="nav.api" />
+        </Link>
+        <Link href="/scam-check" onClick={close}>
+          Scam check
         </Link>
         <Link href="/advanced" onClick={close}>
           Advanced
