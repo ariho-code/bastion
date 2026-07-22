@@ -20,6 +20,7 @@ import (
 	"github.com/ariho-code/bastionscan/engine/internal/scan"
 
 	// Scanner modules — imported for their init()-time registration.
+	_ "github.com/ariho-code/bastionscan/engine/internal/modules/content"
 	_ "github.com/ariho-code/bastionscan/engine/internal/modules/cookies"
 	_ "github.com/ariho-code/bastionscan/engine/internal/modules/dns"
 	_ "github.com/ariho-code/bastionscan/engine/internal/modules/exposure"
