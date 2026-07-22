@@ -66,7 +66,58 @@ curl -s https://bastionscan-brain.onrender.com/v1/assess \
 - Both services are in the `oregon` region by default (edit `render.yaml` to
   change). Keep engine + brain in the same region for low latency.
 
-## 5. Recommended production hardening (env vars)
+## 5. AI environment variables (put these on the **brain**, not the engine)
+
+The LLM, RAG memory, and learning store all run inside **`bastionscan-brain`**.
+The Go **engine** does not need AI keys.
+
+### Where to click (Render)
+
+1. [Render Dashboard](https://dashboard.render.com) → open **`bastionscan-brain`**
+2. **Environment** (left sidebar)
+3. **Add Environment Variable** for each row below
+4. **Save Changes** → service redeploys automatically
+
+### Required for DeepSeek (default)
+
+| Variable | Service | Example | Notes |
+| -------- | ------- | ------- | ----- |
+| `DEEPSEEK_API_KEY` | **brain only** | `sk-...` | From [platform.deepseek.com](https://platform.deepseek.com) |
+| `AI_PROVIDER` | brain | `deepseek` | Default; already in `render.yaml` |
+| `AI_ENABLED` | brain | `true` | |
+| `AI_ON_ASSESS` | brain | `true` | Attach AI insights to every `/v1/assess` |
+| `BASTION_LEARNING_DIR` | brain | `/var/data/bastion-learning` | Persist feedback + RAG; use a disk if possible |
+
+### Later — switch models (same brain service)
+
+| To use | Set on **brain** |
+| ------ | ---------------- |
+| **Grok / xAI** | `AI_PROVIDER=grok` and `XAI_API_KEY=...` |
+| **Claude** | `AI_PROVIDER=claude` and `ANTHROPIC_API_KEY=...` |
+| **Optional remote embeddings** | `EMBEDDING_API_KEY` + `EMBEDDING_BASE_URL` (OpenAI-compatible). DeepSeek has no public embeddings API; local hashing RAG works without this. |
+
+### Do **not** put AI keys on
+
+- `bastionscan-engine` (Go) — no AI runtime
+- Vercel frontend — keys must stay server-side on the brain
+
+### Verify AI is live
+
+```bash
+curl -s https://bastionscan-brain.onrender.com/health | jq .ai,.rag,.learning
+# ai.enabled should be true when DEEPSEEK_API_KEY is set
+```
+
+### Persistent learning on Render
+
+Free instances lose `/tmp` on restart. For learning/RAG to survive:
+
+1. Brain service → **Disks** → add a disk mounted at `/var/data`
+2. Keep `BASTION_LEARNING_DIR=/var/data/bastion-learning`
+
+---
+
+## 6. Recommended production hardening (env vars)
 
 Set these on the **engine** service in Render → Settings → Environment:
 
@@ -76,7 +127,8 @@ Set these on the **engine** service in Render → Settings → Environment:
 | `API_KEYS` | `bk_live_xxx:pro,bk_live_yyy:agency` | Require keys for API access |
 | `API_REQUIRE_KEY` | `true` | Reject anonymous API calls |
 | `RATE_LIMIT_RPM` | `60` | Per-client request cap |
-| `TRUSTED_PROXY` | `true` | Honor Render's `  X-Forwarded-For` for real client IPs |
+| `TRUSTED_PROXY` | `true` | Honor Render's `X-Forwarded-For` for real client IPs |
+| `VERIFY_SECRET` | long random string | DNS ownership token HMAC secret |
 
 On the **brain**: set `ALLOWED_ORIGINS` to your domain too.
 

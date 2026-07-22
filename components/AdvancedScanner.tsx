@@ -74,6 +74,8 @@ interface AIInsights {
   false_positive_risks: string[];
   confidence: number;
   learning_lessons_used: number;
+  rag_hits?: number;
+  rag_citations?: string[];
   source: string;
 }
 
@@ -671,8 +673,27 @@ function Report({
           <p className="av-ai-meta">
             Confidence {(analysis.ai.confidence * 100).toFixed(0)}% · learned from{" "}
             {analysis.ai.learning_lessons_used} past lesson(s)
+            {typeof analysis.ai.rag_hits === "number" ? ` · RAG ${analysis.ai.rag_hits} hit(s)` : ""}
             {analysis.scan_id ? ` · scan ${analysis.scan_id.slice(0, 8)}` : ""}
           </p>
+          {analysis.ai.rag_citations && analysis.ai.rag_citations.length > 0 && (
+            <ul className="av-ai-list">
+              {analysis.ai.rag_citations.slice(0, 3).map((c, i) => (
+                <li key={i}>
+                  <em>memory:</em> {c}
+                </li>
+              ))}
+            </ul>
+          )}
+          <AICopilot
+            target={analysis.target}
+            vertical="general"
+            scanContext={{
+              grade: analysis.grade,
+              risk_level: analysis.risk_level,
+              headline: analysis.headline,
+            }}
+          />
         </section>
       )}
 
@@ -987,6 +1008,58 @@ function ScamBanner({ scam }: { scam: ScamVerdict }) {
         </ul>
       )}
     </section>
+  );
+}
+
+function AICopilot({
+  target,
+  vertical,
+  scanContext,
+}: {
+  target: string;
+  vertical: string;
+  scanContext: Record<string, string>;
+}) {
+  const [q, setQ] = useState("");
+  const [reply, setReply] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const ask = async () => {
+    const message = q.trim();
+    if (!message || busy) return;
+    setBusy(true);
+    setReply("");
+    try {
+      const res = await fetch("/api/ai/chat", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ message, target, vertical, scan_context: scanContext }),
+      });
+      const data = await res.json();
+      setReply(data.reply || data.error || "No reply.");
+    } catch {
+      setReply("AI brain unavailable.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="av-copilot">
+      <div className="av-copilot-row">
+        <input
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && ask()}
+          placeholder="Ask the AI brain (RAG-grounded)…"
+          aria-label="Ask AI copilot"
+        />
+        <button type="button" onClick={ask} disabled={busy}>
+          {busy ? "…" : "Ask"}
+        </button>
+      </div>
+      {reply && <p className="av-copilot-reply">{reply}</p>}
+    </div>
   );
 }
 

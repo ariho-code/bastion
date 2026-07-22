@@ -60,7 +60,19 @@ class Config:
             "no",
         )
 
-        self.version: str = "0.2.0"
+        # RAG embeddings: local hashing by default; optional OpenAI-compatible remote.
+        self.embedding_dim: int = int(os.getenv("EMBEDDING_DIM", "384"))
+        self.embedding_api_key: str = (
+            os.getenv("EMBEDDING_API_KEY", "").strip()
+            or os.getenv("OPENAI_API_KEY", "").strip()
+        )
+        self.embedding_base_url: str = _normalize_url(
+            os.getenv("EMBEDDING_BASE_URL", "https://api.openai.com/v1")
+        )
+        self.embedding_model: str = os.getenv("EMBEDDING_MODEL", "text-embedding-3-small")
+        self.embedding_enabled: bool = bool(self.embedding_api_key)
+
+        self.version: str = "0.3.0"
 
 
 def _ai_profile(

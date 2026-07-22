@@ -109,7 +109,17 @@ class AIInsights(BaseModel):
     false_positive_risks: list[str] = Field(default_factory=list)
     confidence: float = 0.0
     learning_lessons_used: int = 0
+    rag_hits: int = 0
+    rag_citations: list[str] = Field(default_factory=list)
     source: str = "offline"
+
+
+class ChatRequest(BaseModel):
+    message: str
+    target: str = ""
+    vertical: str = "general"
+    scan_context: dict[str, Any] = Field(default_factory=dict)
+    tenant: str = "default"
 
 
 class RiskAnalysis(BaseModel):

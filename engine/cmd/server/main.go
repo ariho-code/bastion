@@ -38,6 +38,7 @@ import (
 	_ "github.com/ariho-code/bastionscan/engine/internal/modules/openredirect"
 	_ "github.com/ariho-code/bastionscan/engine/internal/modules/phishing"
 	_ "github.com/ariho-code/bastionscan/engine/internal/modules/ports"
+	_ "github.com/ariho-code/bastionscan/engine/internal/modules/resilience"
 	_ "github.com/ariho-code/bastionscan/engine/internal/modules/sqli"
 	_ "github.com/ariho-code/bastionscan/engine/internal/modules/subdomains"
 	_ "github.com/ariho-code/bastionscan/engine/internal/modules/tls"

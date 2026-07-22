@@ -16,14 +16,17 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from . import cve, engine_client, osv
 from .ai.client import get_client
-from .ai.insights import enrich_with_ai
+from .ai.insights import chat_with_rag, enrich_with_ai
 from .ai.learning import get_store
+from .ai.ml_model import get_fp_model
+from .ai.rag import get_rag
 from .analyzer import analyze
 from .config import config
 from .models import (
     AIInsights,
     AssessRequest,
     AssessResponse,
+    ChatRequest,
     FeedbackRequest,
     InsightRequest,
     RiskAnalysis,
@@ -54,6 +57,7 @@ async def health() -> dict[str, object]:
         engine_ok = False
     ai = get_client()
     store = get_store()
+    rag = get_rag()
     return {
         "status": "ok",
         "service": "bastionscan-brain",
@@ -67,7 +71,9 @@ async def health() -> dict[str, object]:
         "learning": {
             "dir": str(store.root),
             "feedback": store.feedback_stats().get("total", 0),
+            "ml_trained_on": get_fp_model().trained_on,
         },
+        "rag": rag.stats(),
     }
 
 
@@ -131,6 +137,25 @@ async def assess_endpoint(req: AssessRequest) -> AssessResponse:
     )
     analysis.scan_id = scan_id
 
+    # Continuous learning: index this scan into RAG for future retrieval.
+    try:
+        titles = [
+            str(f.get("title") or f.get("id") or "")
+            for f in findings_payload
+            if f.get("status") in ("fail", "warn")
+        ]
+        await get_rag().index_scan_summary(
+            target=analysis.target,
+            vertical=vertical,
+            grade=analysis.grade,
+            risk_level=analysis.risk_level,
+            headline=analysis.headline,
+            finding_titles=titles,
+            verified=bool(raw.get("verified")),
+        )
+    except Exception:  # noqa: BLE001 — never fail assess on RAG
+        pass
+
     return AssessResponse(scan=raw, analysis=analysis)
 
 
@@ -149,7 +174,25 @@ async def feedback_endpoint(req: FeedbackRequest) -> dict[str, object]:
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    return {"ok": True, "feedback": row, "weights": store.finding_weights()}
+
+    # Retrain FP model + index into RAG so the brain learns from this label.
+    ml_stats = get_fp_model().train_from_feedback()
+    try:
+        await get_rag().index_feedback(
+            finding_id=req.finding_id,
+            label=req.label,
+            target=req.target,
+            note=req.note,
+        )
+    except Exception:  # noqa: BLE001
+        pass
+    return {
+        "ok": True,
+        "feedback": row,
+        "weights": store.finding_weights(),
+        "ml": ml_stats,
+        "rag": get_rag().stats(),
+    }
 
 
 @app.get("/v1/history")
@@ -166,15 +209,60 @@ async def history_endpoint(
 async def learning_endpoint() -> dict[str, object]:
     store = get_store()
     stats = store.feedback_stats()
+    fp = get_fp_model()
     return {
         "stats": stats,
         "lessons": store.few_shot_lessons(15),
+        "ml": {
+            "trained_on": fp.trained_on,
+            "updated_at": fp.updated_at,
+            "kind": "logistic_hashing_fp_classifier",
+        },
+        "rag": get_rag().stats(),
         "ai": {
             "provider": get_client().provider,
             "model": get_client().model,
             "enabled": get_client().enabled,
         },
     }
+
+
+@app.post("/v1/ai/chat")
+async def ai_chat_endpoint(req: ChatRequest) -> dict[str, object]:
+    """RAG-grounded security copilot (for verified-owner workflows in the UI)."""
+    if not (req.message or "").strip():
+        raise HTTPException(status_code=400, detail="message is required")
+    # Soft refuse obvious third-party attack intent even if someone bypasses UI.
+    low = req.message.lower()
+    if any(
+        p in low
+        for p in (
+            "ddos someone",
+            "attack their",
+            "hack their site",
+            "flood their",
+            "bring down their",
+        )
+    ):
+        return {
+            "reply": "I only assist with authorized testing of systems you own and have "
+            "DNS-verified. I will not help attack third parties or run volumetric DDoS.",
+            "source": "policy",
+            "rag_hits": 0,
+        }
+    return await chat_with_rag(
+        req.message.strip(),
+        target=req.target,
+        vertical=req.vertical or "general",
+        scan_context=req.scan_context,
+    )
+
+
+@app.post("/v1/learning/retrain")
+async def retrain_endpoint() -> dict[str, object]:
+    """Force FP model retrain from all stored feedback."""
+    stats = get_fp_model().train_from_feedback()
+    return {"ok": True, "ml": stats, "weights": get_store().finding_weights()}
 
 
 @app.post("/v1/ai/insight")

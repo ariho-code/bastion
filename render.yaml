@@ -57,6 +57,26 @@ services:
       - key: ENGINE_URL
         value: https://bastionscan-engine.onrender.com
       - key: ENGINE_TIMEOUT
-        value: "90"
+        value: "120"
       - key: ALLOWED_ORIGINS
         value: "*"
+      # --- AI brain (set secret values in Render Dashboard → Environment) ---
+      # Put DEEPSEEK_API_KEY (and later XAI_API_KEY / ANTHROPIC_API_KEY) on
+      # bastionscan-brain ONLY — not on the Go engine.
+      - key: AI_PROVIDER
+        value: deepseek
+      - key: AI_ENABLED
+        value: "true"
+      - key: AI_ON_ASSESS
+        value: "true"
+      - key: DEEPSEEK_API_KEY
+        sync: false
+      - key: BASTION_LEARNING_DIR
+        value: /var/data/bastion-learning
+      # Optional later:
+      # - key: XAI_API_KEY
+      #   sync: false
+      # - key: ANTHROPIC_API_KEY
+      #   sync: false
+      # - key: EMBEDDING_API_KEY
+      #   sync: false
