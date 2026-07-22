@@ -139,18 +139,9 @@ h3 {
 /* ---------------- Hero ---------------- */
 .hero {
   position: relative;
-  padding: 68px 22px 60px;
+  padding: 104px 22px 88px;
   overflow: hidden;
-}
-.hero-glow {
-  position: absolute;
-  top: -260px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 1100px;
-  height: 700px;
-  background: radial-gradient(closest-side, rgba(37, 99, 235, 0.16), transparent 70%);
-  pointer-events: none;
+  isolation: isolate;
 }
 .hero::before {
   content: "";
@@ -2663,5 +2654,191 @@ h3 {
   }
   .av-bar-row {
     grid-template-columns: 110px 1fr 30px;
+  }
+}
+
+/* ============================================================
+   Premium UI pass — cinematic hero canvas + depth & motion
+   ============================================================ */
+
+/* Layered hero background: aurora mesh + security grid + scan sweep + grain */
+.hero-bg {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+}
+.hero-aurora {
+  position: absolute;
+  inset: -25% -10% 0;
+  background:
+    radial-gradient(42% 52% at 22% 16%, rgba(37, 99, 235, 0.30), transparent 70%),
+    radial-gradient(38% 46% at 82% 24%, rgba(34, 211, 238, 0.20), transparent 70%),
+    radial-gradient(48% 58% at 50% 2%, rgba(99, 102, 241, 0.24), transparent 72%);
+  filter: blur(16px) saturate(125%);
+  animation: aurora-drift 24s ease-in-out infinite alternate;
+}
+@keyframes aurora-drift {
+  0% { transform: translate3d(-2%, -1%, 0) scale(1.02); }
+  100% { transform: translate3d(3%, 2%, 0) scale(1.09); }
+}
+.hero-grid {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(157, 176, 195, 0.055) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(157, 176, 195, 0.055) 1px, transparent 1px);
+  background-size: 58px 58px;
+  -webkit-mask-image: radial-gradient(120% 78% at 50% 0%, #000 28%, transparent 74%);
+  mask-image: radial-gradient(120% 78% at 50% 0%, #000 28%, transparent 74%);
+}
+.hero-scan {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 42%;
+  background: linear-gradient(180deg, transparent, rgba(34, 211, 238, 0.07) 72%, rgba(34, 211, 238, 0.16));
+  border-bottom: 1px solid rgba(34, 211, 238, 0.32);
+  transform: translateY(-120%);
+  mix-blend-mode: screen;
+  animation: hero-scan 7.5s cubic-bezier(0.6, 0, 0.4, 1) infinite;
+}
+@keyframes hero-scan {
+  0% { transform: translateY(-120%); opacity: 0; }
+  8% { opacity: 1; }
+  92% { opacity: 1; }
+  100% { transform: translateY(320%); opacity: 0; }
+}
+.hero-vignette {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(125% 90% at 50% -12%, transparent 42%, rgba(10, 14, 20, 0.55) 100%);
+}
+.hero-bg::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  opacity: 0.04;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* Refined hero typography */
+.hero h1 {
+  font-family: var(--display);
+  font-size: clamp(40px, 7vw, 70px);
+  font-weight: 600;
+  line-height: 1.02;
+  letter-spacing: -0.035em;
+  margin-bottom: 22px;
+}
+.grad {
+  background: linear-gradient(110deg, var(--accent-2), var(--accent) 55%, #8b93ff);
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: grad-pan 8s ease-in-out infinite alternate;
+}
+@keyframes grad-pan {
+  to { background-position: 100% center; }
+}
+.hero-sub {
+  font-size: clamp(16px, 2.2vw, 20px);
+  max-width: 640px;
+}
+
+/* Glass badge */
+.badge {
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  background: linear-gradient(180deg, rgba(37, 99, 235, 0.16), rgba(37, 99, 235, 0.06));
+  border: 1px solid rgba(120, 160, 255, 0.28);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.05) inset, 0 8px 24px -12px rgba(37, 99, 235, 0.5);
+}
+.badge-dot {
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.18);
+}
+
+/* Staggered hero load-in */
+@media (prefers-reduced-motion: no-preference) {
+  .hero-inner > * {
+    animation: hero-in 0.85s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  }
+  .hero-inner > *:nth-child(1) { animation-delay: 0.04s; }
+  .hero-inner > *:nth-child(2) { animation-delay: 0.12s; }
+  .hero-inner > *:nth-child(3) { animation-delay: 0.2s; }
+  .hero-inner > *:nth-child(4) { animation-delay: 0.3s; }
+  .hero-inner > *:nth-child(5) { animation-delay: 0.42s; }
+}
+@keyframes hero-in {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: none; }
+}
+
+/* Glass nav */
+.nav {
+  backdrop-filter: blur(14px) saturate(140%);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+  background: rgba(10, 14, 20, 0.68);
+}
+
+/* Feature/step card depth + hover lift */
+.feature,
+.step {
+  transition: transform 0.25s cubic-bezier(0.2, 0.7, 0.2, 1), border-color 0.25s, box-shadow 0.25s, background 0.25s;
+}
+.feature:hover,
+.feature-link-card:hover {
+  transform: translateY(-4px);
+  border-color: var(--border-2);
+  box-shadow: 0 20px 40px -24px rgba(0, 0, 0, 0.7), 0 1px 0 rgba(255, 255, 255, 0.04) inset;
+}
+.feature-icon {
+  background: linear-gradient(160deg, var(--accent-soft), transparent);
+  border: 1px solid rgba(120, 160, 255, 0.18);
+}
+
+/* Premium primary CTA */
+.final-btn,
+.nav-cta {
+  box-shadow: 0 10px 30px -10px rgba(37, 99, 235, 0.6), 0 1px 0 rgba(255, 255, 255, 0.12) inset;
+  transition: transform 0.08s ease, filter 0.18s ease, box-shadow 0.18s ease;
+}
+.final-btn:hover,
+.nav-cta:hover {
+  filter: brightness(1.08);
+  box-shadow: 0 16px 40px -12px rgba(37, 99, 235, 0.7), 0 1px 0 rgba(255, 255, 255, 0.14) inset;
+}
+.final-btn:active,
+.nav-cta:active {
+  transform: translateY(1px);
+}
+
+/* Safe scroll-reveal (progressive enhancement; content stays visible if unsupported) */
+@media (prefers-reduced-motion: no-preference) {
+  @supports (animation-timeline: view()) {
+    .section-head,
+    .feature,
+    .step {
+      opacity: 0;
+      transform: translateY(20px);
+      animation: reveal-up linear both;
+      animation-timeline: view();
+      animation-range: entry 4% cover 20%;
+    }
+  }
+}
+@keyframes reveal-up {
+  to { opacity: 1; transform: none; }
+}
+
+/* Respect reduced motion for ambient hero effects */
+@media (prefers-reduced-motion: reduce) {
+  .hero-aurora,
+  .hero-scan,
+  .grad {
+    animation: none;
   }
 }

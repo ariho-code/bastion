@@ -120,7 +120,12 @@ export default function Page() {
     <main>
       {/* Hero */}
       <section className="hero">
-        <div className="hero-glow" aria-hidden="true" />
+        <div className="hero-bg" aria-hidden="true">
+          <div className="hero-aurora" />
+          <div className="hero-grid" />
+          <div className="hero-scan" />
+          <div className="hero-vignette" />
+        </div>
         <div className="hero-inner">
           <div className="badge">
             <span className="badge-dot" /> <T k="hero.badge" />
