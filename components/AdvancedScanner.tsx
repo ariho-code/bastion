@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import UpgradeModal from "./UpgradeModal";
 import { isPro, getQuota, bumpQuota, syncProFromURL, FREE_ADVANCED_LIMIT } from "@/lib/pro";
+import { downloadAdvancedReport } from "@/lib/advancedPdf";
 
 // --- types (mirror the brain's /v1/assess response) -------------------------
 
@@ -371,7 +372,7 @@ export default function AdvancedScanner() {
 
       {error && !data && <div className="av-error">{error}</div>}
 
-      {data && !loading && <Report data={data} />}
+      {data && !loading && <Report data={data} pro={pro} onUpgrade={openUpgrade} />}
 
       <UpgradeModal open={modalOpen} onClose={() => setModalOpen(false)} plan="Pro" reason={modalReason} />
     </div>
@@ -380,10 +381,52 @@ export default function AdvancedScanner() {
 
 // --- report -----------------------------------------------------------------
 
-function Report({ data }: { data: AssessResponse }) {
+function Report({
+  data,
+  pro,
+  onUpgrade,
+}: {
+  data: AssessResponse;
+  pro: boolean;
+  onUpgrade: (reason?: string) => void;
+}) {
   const { scan, analysis } = data;
   const level = analysis.risk_level;
   const color = riskColor(level);
+
+  const [company, setCompany] = useState("");
+  const [downloading, setDownloading] = useState(false);
+
+  // Load any saved white-label company name (Pro).
+  useEffect(() => {
+    try {
+      setCompany(localStorage.getItem("bastion:whitelabel") || "");
+    } catch {
+      /* noop */
+    }
+  }, []);
+
+  const onCompanyChange = (v: string) => {
+    setCompany(v);
+    try {
+      localStorage.setItem("bastion:whitelabel", v);
+    } catch {
+      /* noop */
+    }
+  };
+
+  const download = useCallback(async () => {
+    if (!pro) {
+      onUpgrade("White-label PDF reports — branded with your own company name — are a Pro feature.");
+      return;
+    }
+    setDownloading(true);
+    try {
+      await downloadAdvancedReport(data, { company: company.trim() });
+    } finally {
+      setDownloading(false);
+    }
+  }, [pro, onUpgrade, data, company]);
 
   const surface = useMemo(
     () => scan.findings.filter((f) => f.category === "surface"),
@@ -436,6 +479,32 @@ function Report({ data }: { data: AssessResponse }) {
             {scan.failed} failed · {(scan.durationMs / 1000).toFixed(1)}s
           </div>
         </div>
+      </section>
+
+      {/* export / white-label report */}
+      <section className="av-export">
+        <div className="av-export-main">
+          <button className="av-export-btn" onClick={download} disabled={downloading}>
+            {downloading ? "Preparing…" : "Download report (PDF)"}
+            {!pro && <span className="av-pro-tag">PRO</span>}
+          </button>
+          <span className="av-export-hint">
+            {pro
+              ? "Executive risk report — grade, CVEs, category risk, and the full remediation roadmap."
+              : "White-label PDF reports, branded with your own company name, are a Pro feature."}
+          </span>
+        </div>
+        {pro && (
+          <input
+            className="av-export-input"
+            value={company}
+            onChange={(e) => onCompanyChange(e.target.value)}
+            placeholder="Your company name (optional, white-label)"
+            aria-label="White-label company name"
+            spellCheck={false}
+            maxLength={48}
+          />
+        )}
       </section>
 
       {/* known vulnerabilities (CVE correlation) */}

@@ -3,7 +3,7 @@ import type { ScanResult, Finding } from "./scanner/types";
 import { brand } from "./brand";
 import { B_MONOGRAM, SHIELD_POLYGON, SHIELD_SOLID_RGB } from "./logoMark";
 
-const GRADE_RGB: Record<string, [number, number, number]> = {
+export const GRADE_RGB: Record<string, [number, number, number]> = {
   A: [22, 163, 74],
   B: [101, 163, 13],
   C: [202, 138, 4],
@@ -19,7 +19,7 @@ const STATUS_LABEL: Record<Finding["status"], string> = {
 };
 
 /** Draws the Bastionscan shield mark as native vector shapes — crisp at any zoom, no image embed. */
-function drawShieldMark(doc: JsPDFType, x: number, y: number, height: number) {
+export function drawShieldMark(doc: JsPDFType, x: number, y: number, height: number) {
   const scale = height / 56;
   const pts = SHIELD_POLYGON;
   const startX = x + pts[0][0] * scale;
