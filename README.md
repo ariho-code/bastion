@@ -1,4 +1,4 @@
-# Bastion — Website Security Scanner
+# Bastionscan — Website Security Scanner
 
 A world-class, non-invasive website security scanner. Grades any site A–F across TLS, security headers, DNS/email, cookies, and info disclosure — with copy-paste fixes.
 

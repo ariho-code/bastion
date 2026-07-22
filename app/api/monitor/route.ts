@@ -30,9 +30,9 @@ export async function GET(req: NextRequest) {
   }
   const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Unsubscribed</title></head>
 <body style="margin:0;font-family:system-ui,sans-serif;background:#0a0e14;color:#e7eef5;display:flex;min-height:100vh;align-items:center;justify-content:center;text-align:center;">
-<div><div style="font-size:34px;color:#2dd4bf;">&#9672;</div><h1 style="font-weight:700;">Unsubscribed</h1>
+<div><img src="${SITE_URL}/brand/icon?size=56" width="56" height="56" alt="" style="border-radius:12px;" /><h1 style="font-weight:700;margin-top:16px;">Unsubscribed</h1>
 <p style="color:#9db0c3;">You'll no longer receive monitoring alerts for this site.</p>
-<a href="${SITE_URL}" style="color:#2dd4bf;">Back to ${brand.name}</a></div></body></html>`;
+<a href="${SITE_URL}" style="color:#3b82f6;">Back to ${brand.name}</a></div></body></html>`;
   return new NextResponse(html, { status: 200, headers: { "content-type": "text/html; charset=utf-8" } });
 }
 

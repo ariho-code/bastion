@@ -1,6 +1,7 @@
 import type { jsPDF as JsPDFType } from "jspdf";
 import type { ScanResult, Finding } from "./scanner/types";
 import { brand } from "./brand";
+import { B_MONOGRAM, SHIELD_POLYGON, SHIELD_SOLID_RGB } from "./logoMark";
 
 const GRADE_RGB: Record<string, [number, number, number]> = {
   A: [22, 163, 74],
@@ -16,6 +17,33 @@ const STATUS_LABEL: Record<Finding["status"], string> = {
   fail: "FAIL",
   info: "INFO",
 };
+
+/** Draws the Bastionscan shield mark as native vector shapes — crisp at any zoom, no image embed. */
+function drawShieldMark(doc: JsPDFType, x: number, y: number, height: number) {
+  const scale = height / 56;
+  const pts = SHIELD_POLYGON;
+  const startX = x + pts[0][0] * scale;
+  const startY = y + pts[0][1] * scale;
+  const segments: number[][] = [];
+  for (let i = 1; i < pts.length; i++) {
+    segments.push([(pts[i][0] - pts[i - 1][0]) * scale, (pts[i][1] - pts[i - 1][1]) * scale]);
+  }
+  doc.setFillColor(SHIELD_SOLID_RGB[0], SHIELD_SOLID_RGB[1], SHIELD_SOLID_RGB[2]);
+  doc.lines(segments, startX, startY, [1, 1], "F", true);
+
+  doc.setFillColor(255, 255, 255);
+  for (const r of B_MONOGRAM) {
+    doc.roundedRect(
+      x + r.x * scale,
+      y + r.y * scale,
+      r.width * scale,
+      r.height * scale,
+      r.rx * scale,
+      r.rx * scale,
+      "F"
+    );
+  }
+}
 
 const VERDICT: Record<string, string> = {
   A: "Excellent — well ahead of most of the web.",
@@ -46,14 +74,19 @@ export async function buildReportDoc(result: ScanResult): Promise<JsPDFType> {
   // Header band
   doc.setFillColor(10, 14, 20);
   doc.rect(0, 0, pageW, 96, "F");
-  doc.setTextColor(45, 212, 191);
+  drawShieldMark(doc, margin, 22, 40);
+  const wordmarkX = margin + 40 * (48 / 56) + 12;
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(22);
-  doc.text(brand.name, margin, 46);
+  doc.setFontSize(20);
+  doc.setTextColor(245, 248, 252);
+  doc.text("Bastion", wordmarkX, 46);
+  const bastionWidth = doc.getTextWidth("Bastion");
+  doc.setTextColor(59, 130, 246);
+  doc.text("scan", wordmarkX + bastionWidth, 46);
   doc.setTextColor(200, 210, 220);
   doc.setFont("helvetica", "normal");
   doc.setFontSize(11);
-  doc.text("Website Security Report", margin, 66);
+  doc.text("Website Security Report", wordmarkX, 66);
   doc.setTextColor(120, 135, 150);
   doc.setFontSize(9);
   doc.text(new Date(result.scannedAt).toLocaleString(), pageW - margin, 46, { align: "right" });

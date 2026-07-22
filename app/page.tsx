@@ -106,7 +106,7 @@ const STEPS = [
   {
     n: "2",
     title: "We inspect it live",
-    body: "Bastion runs 28 deep checks across TLS (forward secrecy, OCSP), headers, DNSSEC & email auth in seconds — reading only public data.",
+    body: "Bastionscan runs 28 deep checks across TLS (forward secrecy, OCSP), headers, DNSSEC & email auth in seconds — reading only public data.",
   },
   {
     n: "3",

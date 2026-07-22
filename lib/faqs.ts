@@ -13,7 +13,7 @@ export const FAQS: Faq[] = [
     a: `Yes. ${brand.name} only reads the public information a normal browser already receives — response headers, the TLS certificate, and public DNS records. It never logs in, submits forms, brute-forces, or probes for vulnerabilities, so it places no meaningful load on the target and stays firmly on the right side of the line.`,
   },
   {
-    q: "What exactly does Bastion check?",
+    q: "What exactly does Bastionscan check?",
     a: "28 deep signals across six categories: Transport & TLS (HTTPS, HSTS, TLS version, certificate validity, forward secrecy, OCSP stapling and key strength), Response Headers (CSP depth analysis, X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Permissions-Policy, cross-origin isolation), DNS & Email (DNSSEC, SPF, DMARC, CAA, DKIM, MTA-STS, SMTP TLS-RPT and BIMI), Cookies (Secure, HttpOnly, SameSite), Content Integrity (live mixed-content detection), and Information Disclosure (server banners, X-Powered-By, security.txt, risky HTTP methods).",
   },
   {

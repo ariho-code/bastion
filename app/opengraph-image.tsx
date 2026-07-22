@@ -1,5 +1,6 @@
 import { ImageResponse } from "next/og";
 import { brand } from "@/lib/brand";
+import { shieldSvg } from "@/lib/logoOg";
 
 export const runtime = "edge";
 export const alt = `${brand.name} — Website Security Scanner`;
@@ -21,16 +22,19 @@ export default function OgImage() {
           fontFamily: "sans-serif",
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
-          <div style={{ fontSize: 44, color: "#2dd4bf" }}>◈</div>
-          <div style={{ fontSize: 40, color: "#e6edf3", fontWeight: 700 }}>{brand.name}</div>
+        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+          {shieldSvg(48)}
+          <div style={{ display: "flex", fontSize: 40, fontWeight: 700 }}>
+            <span style={{ color: "#e6edf3" }}>Bastion</span>
+            <span style={{ color: "#3b82f6" }}>scan</span>
+          </div>
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
           <div style={{ fontSize: 68, color: "#ffffff", fontWeight: 800, lineHeight: 1.05 }}>
             Is your website
           </div>
-          <div style={{ fontSize: 68, fontWeight: 800, lineHeight: 1.05, color: "#2dd4bf" }}>
+          <div style={{ fontSize: 68, fontWeight: 800, lineHeight: 1.05, color: "#3b82f6" }}>
             actually secure?
           </div>
           <div style={{ fontSize: 30, color: "#93a1b3", marginTop: 8 }}>

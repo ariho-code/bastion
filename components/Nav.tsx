@@ -2,16 +2,14 @@ import Link from "next/link";
 import { brand } from "@/lib/brand";
 import T from "@/components/T";
 import LangSwitcher from "@/components/LangSwitcher";
+import Logo from "@/components/Logo";
 
 export default function Nav() {
   return (
     <header className="nav">
       <div className="nav-inner">
         <Link href="/" className="brand" aria-label={`${brand.name} home`}>
-          <span className="brand-mark" aria-hidden="true">
-            ◈
-          </span>
-          <span className="brand-name">{brand.name}</span>
+          <Logo size={26} />
         </Link>
         <nav className="nav-links">
           <a href="/#how">

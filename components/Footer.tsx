@@ -2,16 +2,14 @@ import Link from "next/link";
 import { brand } from "@/lib/brand";
 import { TOOLS } from "@/lib/tools";
 import T from "@/components/T";
+import Logo from "@/components/Logo";
 
 export default function Footer() {
   return (
     <footer className="footer">
       <div className="footer-inner">
         <div className="footer-brand">
-          <span className="brand-mark" aria-hidden="true">
-            ◈
-          </span>
-          <span className="brand-name">{brand.name}</span>
+          <Logo size={30} variant="stacked" />
           <p>
             <T k="footer.tagline" />
           </p>

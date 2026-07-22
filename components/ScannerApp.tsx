@@ -9,6 +9,7 @@ import CategoryChart from "./CategoryChart";
 import UpgradeModal from "./UpgradeModal";
 import MonitorCard from "./MonitorCard";
 import Icon from "./Icon";
+import ScanVisualizer from "./ScanVisualizer";
 import { useI18n } from "./LanguageProvider";
 
 const EXAMPLES = ["github.com", "stripe.com", "wikipedia.org"];
@@ -303,15 +304,7 @@ export default function ScannerApp() {
         )}
       </div>
 
-      {loading && (
-        <div className="loading-card">
-          <div className="scanbeam" />
-          <div className="loading-text">
-            <span className="spinner dark" />
-            {LOADING_STAGES[stage]}
-          </div>
-        </div>
-      )}
+      {loading && <ScanVisualizer stages={LOADING_STAGES} stage={stage} host={url.trim()} />}
 
       {result && counts && (
         <section className="result" ref={resultRef} aria-live="polite">

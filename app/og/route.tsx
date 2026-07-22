@@ -1,6 +1,7 @@
 import { ImageResponse } from "next/og";
 import type { NextRequest } from "next/server";
 import { brand } from "@/lib/brand";
+import { shieldSvg } from "@/lib/logoOg";
 
 export const runtime = "edge";
 
@@ -40,9 +41,12 @@ export function GET(req: NextRequest) {
         }}
       >
         {/* Brand row */}
-        <div style={{ display: "flex", alignItems: "center", gap: 18 }}>
-          <div style={{ fontSize: 40, color: "#2dd4bf" }}>◈</div>
-          <div style={{ fontSize: 36, color: "#e6edf3", fontWeight: 700 }}>{brand.name}</div>
+        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+          {shieldSvg(44)}
+          <div style={{ display: "flex", fontSize: 36, fontWeight: 700 }}>
+            <span style={{ color: "#e6edf3" }}>Bastion</span>
+            <span style={{ color: "#3b82f6" }}>scan</span>
+          </div>
           <div
             style={{
               marginLeft: 14,

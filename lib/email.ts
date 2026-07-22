@@ -1,9 +1,10 @@
 import nodemailer from "nodemailer";
 import type { Transporter } from "nodemailer";
 import type { ScanResult } from "./scanner/types";
-import { brand } from "./brand";
+import { brand, SITE_URL } from "./brand";
 import { renderReportEmailHtml, renderReportEmailText } from "./emailTemplate";
 import { renderReportPdfBuffer } from "./pdf";
+import { EMAIL_LOGO_HEIGHT, EMAIL_LOGO_WIDTH } from "./logoMark";
 
 interface MailConfig {
   user: string;
@@ -131,10 +132,10 @@ export async function sendMonitorConfirm(
     subject: `Monitoring enabled for ${host}`,
     text: `${brand.name} is now monitoring ${host} daily and will email you the moment its security grade drops.\n\nUnsubscribe: ${unsubscribeUrl}`,
     html: `<div style="font-family:Helvetica,Arial,sans-serif;max-width:520px;margin:auto;padding:28px;color:#0f172a;">
-      <div style="font:700 20px/1 Helvetica;"><span style="color:#2dd4bf;">&#9672;</span> ${brand.name}</div>
+      <img src="${SITE_URL}/brand/logo-email" width="${EMAIL_LOGO_WIDTH}" height="${EMAIL_LOGO_HEIGHT}" alt="${brand.name}" style="display:block;border:0;outline:none;background:#0a0e14;padding:10px 14px;border-radius:8px;" />
       <h2 style="margin:18px 0 8px;font-size:20px;">Monitoring is on &#9989;</h2>
       <p style="color:#475569;font-size:15px;line-height:1.6;">We'll re-scan <strong>${host}</strong> every day and email you the moment its security grade drops — so you never get caught out by a silent regression.</p>
-      <p style="font-size:12px;color:#94a3b8;margin-top:20px;">Not you, or changed your mind? <a href="${unsubscribeUrl}" style="color:#0ea5e9;">Unsubscribe</a>.</p>
+      <p style="font-size:12px;color:#94a3b8;margin-top:20px;">Not you, or changed your mind? <a href="${unsubscribeUrl}" style="color:#2563eb;">Unsubscribe</a>.</p>
     </div>`,
   });
 }

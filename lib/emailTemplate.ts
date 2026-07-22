@@ -1,5 +1,6 @@
 import type { ScanResult, Finding } from "./scanner/types";
 import { brand, SITE_URL } from "./brand";
+import { EMAIL_LOGO_HEIGHT, EMAIL_LOGO_WIDTH } from "./logoMark";
 
 const GRADE_HEX: Record<string, string> = {
   A: "#16a34a",
@@ -119,10 +120,12 @@ export function renderReportEmailHtml(result: ScanResult): string {
   <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 8px 30px rgba(15,23,42,.08);">
 
     <!-- Header -->
-    <tr><td style="background:#0a0e14;padding:26px 32px;">
+    <tr><td style="background:#0a0e14;padding:22px 32px;">
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
-        <td style="font:700 22px/1 Helvetica,Arial,sans-serif;color:#ffffff;">
-          <span style="color:#2dd4bf;">&#9672;</span>&nbsp; ${esc(brand.name)}
+        <td>
+          <img src="${SITE_URL}/brand/logo-email" width="${EMAIL_LOGO_WIDTH}" height="${EMAIL_LOGO_HEIGHT}" alt="${esc(
+    brand.name
+  )}" style="display:block;border:0;outline:none;" />
         </td>
         <td style="text-align:right;font:500 13px/1.4 Helvetica,Arial,sans-serif;color:#8b9bb0;">Website Security Report</td>
       </tr></table>
@@ -164,8 +167,8 @@ export function renderReportEmailHtml(result: ScanResult): string {
     <!-- CTA -->
     <tr><td style="padding:20px 32px 4px;">
       <table role="presentation" cellpadding="0" cellspacing="0"><tr>
-        <td style="background:#2dd4bf;border-radius:10px;">
-          <a href="${scanUrl}" style="display:inline-block;padding:13px 26px;font:700 15px/1 Helvetica,Arial,sans-serif;color:#052925;text-decoration:none;">View the live report &rarr;</a>
+        <td style="background:#2563eb;border-radius:10px;">
+          <a href="${scanUrl}" style="display:inline-block;padding:13px 26px;font:700 15px/1 Helvetica,Arial,sans-serif;color:#ffffff;text-decoration:none;">View the live report &rarr;</a>
         </td>
       </tr></table>
     </td></tr>

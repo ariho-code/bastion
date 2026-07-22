@@ -28,7 +28,7 @@ const en: Dict = {
   "hero.accent": "actually secure?",
   "hero.title2": "Find out in seconds.",
   "hero.sub":
-    "Bastion grades any site A–F across TLS, security headers, DNS and cookies — then hands you the exact fixes. Free, instant, and safe to run on any website you own.",
+    "Bastionscan grades any site A–F across TLS, security headers, DNS and cookies — then hands you the exact fixes. Free, instant, and safe to run on any website you own.",
   "hero.trust1": "28 deep security checks",
   "hero.trust2": "No login required",
   "hero.trust3": "Fixes for every issue",
@@ -41,7 +41,7 @@ const en: Dict = {
   "feat.eyebrow": "What we check",
   "feat.title": "A complete picture of your security posture",
   "feat.sub":
-    "Most tools stop at a couple of headers. Bastion looks across six categories that actually determine whether your site can be attacked.",
+    "Most tools stop at a couple of headers. Bastionscan looks across six categories that actually determine whether your site can be attacked.",
   "plat.eyebrow": "The platform",
   "plat.title": "Not just a scan — a security workflow",
   "plat.sub":
@@ -76,7 +76,7 @@ const es: Dict = {
   "hero.accent": "realmente seguro?",
   "hero.title2": "Descúbrelo en segundos.",
   "hero.sub":
-    "Bastion califica cualquier sitio de la A a la F en TLS, cabeceras de seguridad, DNS y cookies, y te da las soluciones exactas. Gratis, instantáneo y seguro en cualquier web que sea tuya.",
+    "Bastionscan califica cualquier sitio de la A a la F en TLS, cabeceras de seguridad, DNS y cookies, y te da las soluciones exactas. Gratis, instantáneo y seguro en cualquier web que sea tuya.",
   "hero.trust1": "28 comprobaciones de seguridad",
   "hero.trust2": "Sin registro",
   "hero.trust3": "Soluciones para cada problema",
@@ -89,7 +89,7 @@ const es: Dict = {
   "feat.eyebrow": "Qué comprobamos",
   "feat.title": "Una imagen completa de tu seguridad",
   "feat.sub":
-    "La mayoría de herramientas se quedan en un par de cabeceras. Bastion analiza seis categorías que determinan de verdad si tu sitio puede ser atacado.",
+    "La mayoría de herramientas se quedan en un par de cabeceras. Bastionscan analiza seis categorías que determinan de verdad si tu sitio puede ser atacado.",
   "plat.eyebrow": "La plataforma",
   "plat.title": "No solo un análisis: un flujo de seguridad",
   "plat.sub":
@@ -124,7 +124,7 @@ const fr: Dict = {
   "hero.accent": "vraiment sécurisé ?",
   "hero.title2": "Découvrez-le en quelques secondes.",
   "hero.sub":
-    "Bastion note n'importe quel site de A à F sur le TLS, les en-têtes de sécurité, le DNS et les cookies, puis vous donne les correctifs exacts. Gratuit, instantané et sûr sur tout site qui vous appartient.",
+    "Bastionscan note n'importe quel site de A à F sur le TLS, les en-têtes de sécurité, le DNS et les cookies, puis vous donne les correctifs exacts. Gratuit, instantané et sûr sur tout site qui vous appartient.",
   "hero.trust1": "28 contrôles de sécurité",
   "hero.trust2": "Sans inscription",
   "hero.trust3": "Un correctif pour chaque problème",
@@ -137,7 +137,7 @@ const fr: Dict = {
   "feat.eyebrow": "Ce que nous vérifions",
   "feat.title": "Une vue complète de votre sécurité",
   "feat.sub":
-    "La plupart des outils s'arrêtent à quelques en-têtes. Bastion examine six catégories qui déterminent vraiment si votre site peut être attaqué.",
+    "La plupart des outils s'arrêtent à quelques en-têtes. Bastionscan examine six catégories qui déterminent vraiment si votre site peut être attaqué.",
   "plat.eyebrow": "La plateforme",
   "plat.title": "Pas qu'une analyse — un flux de sécurité",
   "plat.sub":
@@ -172,7 +172,7 @@ const de: Dict = {
   "hero.accent": "wirklich sicher?",
   "hero.title2": "Finde es in Sekunden heraus.",
   "hero.sub":
-    "Bastion bewertet jede Website von A–F bei TLS, Sicherheits-Headern, DNS und Cookies — und liefert die genauen Lösungen. Kostenlos, sofort und sicher für jede eigene Website.",
+    "Bastionscan bewertet jede Website von A–F bei TLS, Sicherheits-Headern, DNS und Cookies — und liefert die genauen Lösungen. Kostenlos, sofort und sicher für jede eigene Website.",
   "hero.trust1": "28 Sicherheitsprüfungen",
   "hero.trust2": "Keine Anmeldung nötig",
   "hero.trust3": "Lösung für jedes Problem",
@@ -185,7 +185,7 @@ const de: Dict = {
   "feat.eyebrow": "Was wir prüfen",
   "feat.title": "Ein vollständiges Bild deiner Sicherheit",
   "feat.sub":
-    "Die meisten Tools hören bei ein paar Headern auf. Bastion prüft sechs Kategorien, die wirklich entscheiden, ob deine Website angreifbar ist.",
+    "Die meisten Tools hören bei ein paar Headern auf. Bastionscan prüft sechs Kategorien, die wirklich entscheiden, ob deine Website angreifbar ist.",
   "plat.eyebrow": "Die Plattform",
   "plat.title": "Nicht nur ein Scan — ein Sicherheits-Workflow",
   "plat.sub":
@@ -220,7 +220,7 @@ const pt: Dict = {
   "hero.accent": "realmente seguro?",
   "hero.title2": "Descubra em segundos.",
   "hero.sub":
-    "O Bastion avalia qualquer site de A a F em TLS, cabeçalhos de segurança, DNS e cookies — e entrega as correções exatas. Grátis, instantâneo e seguro em qualquer site seu.",
+    "O Bastionscan avalia qualquer site de A a F em TLS, cabeçalhos de segurança, DNS e cookies — e entrega as correções exatas. Grátis, instantâneo e seguro em qualquer site seu.",
   "hero.trust1": "28 verificações de segurança",
   "hero.trust2": "Sem cadastro",
   "hero.trust3": "Correção para cada problema",
@@ -233,7 +233,7 @@ const pt: Dict = {
   "feat.eyebrow": "O que verificamos",
   "feat.title": "Uma visão completa da sua segurança",
   "feat.sub":
-    "A maioria das ferramentas para em alguns cabeçalhos. O Bastion analisa seis categorias que realmente determinam se o seu site pode ser atacado.",
+    "A maioria das ferramentas para em alguns cabeçalhos. O Bastionscan analisa seis categorias que realmente determinam se o seu site pode ser atacado.",
   "plat.eyebrow": "A plataforma",
   "plat.title": "Não é só um scan — é um fluxo de segurança",
   "plat.sub":

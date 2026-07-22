@@ -42,7 +42,7 @@ const TIERS: Tier[] = [
       "Email alerts the moment a grade drops",
       "Bulk scan up to 25 sites",
       "Cloud history & score trends",
-      "Remove Bastion branding from PDFs",
+      "Remove Bastionscan branding from PDFs",
     ],
     cta: "Go Pro",
     featured: true,

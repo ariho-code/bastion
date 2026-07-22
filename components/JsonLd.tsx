@@ -41,6 +41,7 @@ export default function JsonLd() {
         name: brand.name,
         url: SITE_URL,
         email: brand.contactEmail,
+        logo: `${SITE_URL}/brand/icon?size=512`,
       },
     ],
   };
