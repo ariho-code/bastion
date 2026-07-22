@@ -73,6 +73,15 @@ class CategoryRisk(BaseModel):
     open_issues: int
 
 
+class CVEMatch(BaseModel):
+    product: str
+    version: str
+    fixed_in: str
+    severity: Severity
+    cves: list[str]
+    summary: str
+
+
 class RiskAnalysis(BaseModel):
     target: str
     grade: str
@@ -87,6 +96,7 @@ class RiskAnalysis(BaseModel):
     medium_count: int
     low_count: int
     category_risk: list[CategoryRisk]
+    cve_matches: list[CVEMatch]
     remediation: list[RemediationItem]
     generated_by: str = "bastionscan-brain"
 

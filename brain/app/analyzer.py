@@ -10,8 +10,10 @@ from __future__ import annotations
 
 import math
 
+from . import cve
 from .models import (
     CategoryRisk,
+    CVEMatch,
     Finding,
     RemediationItem,
     RiskAnalysis,
@@ -126,11 +128,19 @@ def analyze(scan: ScanResult) -> RiskAnalysis:
     medium = sum(1 for f in fails if f.severity == "medium")
     low = sum(1 for f in fails if f.severity == "low")
 
+    # --- CVE correlation -----------------------------------------------------
+    cve_matches = cve.correlate(findings)
+
     # --- risk index ----------------------------------------------------------
+    # Known-vulnerable software is a strong, concrete risk signal, so it adds to
+    # the raw figure alongside the open findings.
     raw = sum(_weight(f) for f in open_issues)
+    raw += sum(SEVERITY_WEIGHT.get(m.severity, 0.0) * 1.6 for m in cve_matches)
     risk_index = round(100 * (1 - math.exp(-raw / _SATURATION)))
     risk_index = max(0, min(100, risk_index))
-    level = _risk_level(risk_index, critical, high)
+    # A critical CVE should never read as low risk.
+    cve_critical = any(m.severity == "critical" for m in cve_matches)
+    level = _risk_level(risk_index, critical + (1 if cve_critical else 0), high)
 
     # --- per-category risk ---------------------------------------------------
     cat_raw: dict[str, float] = {}
@@ -149,11 +159,18 @@ def analyze(scan: ScanResult) -> RiskAnalysis:
     ]
 
     # --- remediation roadmap -------------------------------------------------
-    remediation = _build_remediation(open_issues)
+    remediation = _build_remediation(open_issues) + _cve_remediation(cve_matches)
+    remediation.sort(key=lambda it: (int(it.priority[1]), -it.points_lost))
 
     # --- narrative -----------------------------------------------------------
     strengths = _strengths(findings)
     headline, summary = _narrative(scan, level, critical, high, medium, remediation, strengths)
+    if cve_matches:
+        names = ", ".join(f"{m.product} {m.version}" for m in cve_matches[:3])
+        summary.insert(
+            0,
+            f"{len(cve_matches)} outdated component(s) with known CVEs detected: {names}.",
+        )
 
     return RiskAnalysis(
         target=scan.target or scan.host,
@@ -169,6 +186,7 @@ def analyze(scan: ScanResult) -> RiskAnalysis:
         medium_count=medium,
         low_count=low,
         category_risk=category_risk,
+        cve_matches=cve_matches,
         remediation=remediation,
     )
 
@@ -190,6 +208,27 @@ def _build_remediation(open_issues: list[Finding]) -> list[RemediationItem]:
     ]
     items.sort(key=lambda it: (int(it.priority[1]), -it.points_lost))
     return items
+
+
+def _cve_remediation(matches: list[CVEMatch]) -> list[RemediationItem]:
+    prio = {"critical": "P1", "high": "P2", "medium": "P3", "low": "P4", "info": "P4"}
+    out: list[RemediationItem] = []
+    for m in matches:
+        cves = ", ".join(m.cves)
+        out.append(
+            RemediationItem(
+                priority=prio.get(m.severity, "P3"),
+                severity=m.severity,
+                category="software",
+                title=f"Upgrade {m.product} to {m.fixed_in}+",
+                detail=f"Detected {m.product} {m.version}. {m.summary} ({cves})",
+                fix=f"Update {m.product} to {m.fixed_in} or later.",
+                reference=None,
+                effort="Involved",
+                points_lost=0,
+            )
+        )
+    return out
 
 
 def _strengths(findings: list[Finding]) -> list[str]:
