@@ -13,6 +13,7 @@ import (
 	"crypto/x509"
 	"fmt"
 	"net"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -397,12 +398,7 @@ func handshake(ctx context.Context, addr, serverName string, minV, maxV uint16, 
 }
 
 func supportsTLS12(vers []uint16) bool {
-	for _, v := range vers {
-		if v == tls.VersionTLS12 {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(vers, tls.VersionTLS12)
 }
 
 func isWeakCipherName(name string) bool {
