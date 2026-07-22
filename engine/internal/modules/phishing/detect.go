@@ -64,7 +64,7 @@ type assessment struct {
 // of the module and is deliberately corroboration-aware: soft signals only
 // escalate to "dangerous" when they reinforce each other, which is what keeps
 // false positives on legitimate sites low.
-func assess(in input) assessment {
+func assess(in input, extra ...signal) assessment {
 	a := assessment{}
 	add := func(code string, weight int, detail string) {
 		a.signals = append(a.signals, signal{code, weight, detail})
@@ -122,6 +122,9 @@ func assess(in input) assessment {
 		}
 	}
 
+	// --- Network-derived reputation signals (domain age, blocklists) ---
+	a.signals = append(a.signals, extra...)
+
 	// --- Aggregate ---
 	for _, s := range a.signals {
 		a.score += s.weight
@@ -137,6 +140,16 @@ func assess(in input) assessment {
 	}
 	if impWeight >= 35 && a.passwordForm {
 		a.verdict = verdictDangerous
+	}
+	// A domain on a reputable blocklist is conclusive; a brand-new domain that is
+	// also impersonating a brand is a textbook fresh phishing kit.
+	for _, s := range a.signals {
+		if s.code == "blocklist" {
+			a.verdict = verdictDangerous
+		}
+		if s.code == "domain-new" && impWeight > 0 && a.verdict < verdictDangerous {
+			a.verdict = verdictDangerous
+		}
 	}
 	return a
 }

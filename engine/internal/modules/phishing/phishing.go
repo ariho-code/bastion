@@ -10,6 +10,7 @@ package phishing
 import (
 	"context"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/ariho-code/bastionscan/engine/internal/scan"
@@ -53,14 +54,15 @@ func (m *Module) Run(ctx context.Context, t *scan.Target, env *scan.Env) ([]scan
 		body:        body,
 	}
 
-	a := assess(in)
-	return findingsFor(a), nil
+	nr := gatherReputation(ctx, env, t.Domain)
+	a := assess(in, nr.signals...)
+	return findingsFor(a, nr), nil
 }
 
 // findingsFor converts an assessment into the module's graded findings. Three
 // scored findings drive the category grade; a fourth verdict finding carries the
 // plain-English bottom line that the frontend and brain surface to users.
-func findingsFor(a assessment) []scan.Finding {
+func findingsFor(a assessment, nr netResult) []scan.Finding {
 	var out []scan.Finding
 
 	// 1. Brand impersonation (weight 45).
@@ -134,7 +136,43 @@ func findingsFor(a assessment) []scan.Finding {
 	}
 	out = append(out, urlF)
 
-	// 4. Scam-genre context (advisory, not scored) — only when something fired.
+	// 4. Domain reputation: age (RDAP) + blocklists. Scored only when we have
+	// real data — an unknown age must never penalize a legitimate site.
+	rep := scan.Finding{
+		ID: "phishing.reputation", Module: "phishing", Category: scan.CategoryScam,
+		Title: "Domain reputation & age", Reference: "https://www.spamhaus.org/",
+	}
+	switch {
+	case len(nr.blocklists) > 0:
+		rep.MaxPoints, rep.Points = 25, 0
+		rep.Status, rep.Severity = scan.StatusFail, scan.SeverityCritical
+		rep.Detail = "This domain is on reputable abuse/phishing blocklists — a strong indicator it is already known to be malicious."
+		rep.Evidence = "Listed on: " + strings.Join(nr.blocklists, ", ")
+		rep.Fix = "Do not interact with this site. If it is your own domain, investigate for compromise and request delisting."
+	case nr.ageDays >= 0 && nr.ageDays <= 30:
+		rep.MaxPoints, rep.Points = 25, 0
+		rep.Status, rep.Severity = scan.StatusFail, scan.SeverityHigh
+		rep.Detail = "This domain was registered very recently (" + humanAge(nr.ageDays) + "). The vast majority of phishing and scam domains are only days or weeks old."
+		rep.Evidence = "Registered " + nr.regDate
+		rep.Fix = "Be extremely cautious with brand-new domains asking for logins, payments or wallet access."
+	case nr.ageDays >= 0 && nr.ageDays <= 90:
+		rep.MaxPoints, rep.Points = 25, 12
+		rep.Status, rep.Severity = scan.StatusWarn, scan.SeverityLow
+		rep.Detail = "This domain is fairly new (" + humanAge(nr.ageDays) + "). Newness alone isn't proof of a scam, but stay alert."
+		rep.Evidence = "Registered " + nr.regDate
+	case nr.ageDays > 90:
+		rep.MaxPoints, rep.Points = 25, 25
+		rep.Status, rep.Severity = scan.StatusPass, scan.SeverityInfo
+		rep.Detail = "The domain is well-established (" + humanAge(nr.ageDays) + ") and not on any checked blocklist."
+		rep.Evidence = "Registered " + nr.regDate
+	default:
+		rep.MaxPoints, rep.Points = 0, 0
+		rep.Status, rep.Severity = scan.StatusInfo, scan.SeverityInfo
+		rep.Detail = "The domain's registration age could not be determined; it is not on any checked blocklist."
+	}
+	out = append(out, rep)
+
+	// 5. Scam-genre context (advisory, not scored) — only when something fired.
 	if ev := a.scamGenreEvidence(); ev != "" {
 		out = append(out, scan.Finding{
 			ID: "phishing.genre", Module: "phishing", Category: scan.CategoryScam,
@@ -144,7 +182,7 @@ func findingsFor(a assessment) []scan.Finding {
 		})
 	}
 
-	// 5. Consumer verdict — the plain-English headline (not scored).
+	// 6. Consumer verdict — the plain-English headline (not scored).
 	out = append(out, a.verdictFinding())
 	return out
 }
@@ -154,6 +192,22 @@ func clampPoints(p int) int {
 		return 0
 	}
 	return p
+}
+
+// humanAge renders a domain age in days as a friendly phrase for report text.
+func humanAge(days int) string {
+	switch {
+	case days <= 1:
+		return "registered today"
+	case days < 14:
+		return strconv.Itoa(days) + " days old"
+	case days < 60:
+		return strconv.Itoa(days/7) + " weeks old"
+	case days < 730:
+		return strconv.Itoa(days/30) + " months old"
+	default:
+		return strconv.Itoa(days/365) + " years old"
+	}
 }
 
 // --- assessment presentation helpers ----------------------------------------
