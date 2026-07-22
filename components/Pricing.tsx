@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { brand } from "@/lib/brand";
+import UpgradeModal from "./UpgradeModal";
 
 interface Tier {
   name: string;
@@ -67,19 +67,14 @@ const TIERS: Tier[] = [
 
 export default function Pricing() {
   const [annual, setAnnual] = useState(true);
+  const [modalPlan, setModalPlan] = useState<string | null>(null);
 
   function choose(tier: Tier) {
     if (tier.monthly === 0) {
       document.getElementById("scan")?.scrollIntoView({ behavior: "smooth" });
       return;
     }
-    if (brand.checkoutUrl) {
-      window.open(brand.checkoutUrl, "_blank", "noopener");
-    } else {
-      alert(
-        `${tier.plan} is launching soon. Add your checkout link in lib/brand.ts (Lemon Squeezy / Paddle / Polar) to accept payments.`
-      );
-    }
+    setModalPlan(tier.plan);
   }
 
   return (
@@ -147,6 +142,12 @@ export default function Pricing() {
         Prices in USD. Payments handled by our merchant of record — local cards, PayPal, Apple Pay &amp;
         Google Pay supported worldwide. 14-day money-back guarantee on paid plans.
       </p>
+
+      <UpgradeModal
+        open={!!modalPlan}
+        onClose={() => setModalPlan(null)}
+        plan={modalPlan || "Pro"}
+      />
     </section>
   );
 }

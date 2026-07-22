@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import ScannerApp from "@/components/ScannerApp";
 import Pricing from "@/components/Pricing";
 import Faq from "@/components/Faq";
+import Icon, { type IconName } from "@/components/Icon";
 import { brand } from "@/lib/brand";
 
 type SearchParams = Record<string, string | string[] | undefined>;
@@ -52,34 +53,34 @@ export function generateMetadata({
   };
 }
 
-const CATEGORIES = [
+const CATEGORIES: { icon: IconName; title: string; body: string }[] = [
   {
-    icon: "🔐",
+    icon: "lock",
     title: "Transport & TLS",
     body: "HTTPS enforcement, HTTP→HTTPS redirects, HSTS, the negotiated TLS version and full certificate validity — expiry, issuer and trust chain.",
   },
   {
-    icon: "🛡️",
+    icon: "shield",
     title: "Response Headers",
     body: "Content-Security-Policy, X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Permissions-Policy and cross-origin isolation — your first line against XSS and clickjacking.",
   },
   {
-    icon: "📧",
+    icon: "mail",
     title: "DNS & Email",
     body: "SPF, DMARC and CAA records so attackers can't spoof your domain in email or trick a CA into mis-issuing certificates.",
   },
   {
-    icon: "🍪",
+    icon: "cookie",
     title: "Cookies",
     body: "Every Set-Cookie is checked for Secure, HttpOnly and SameSite — the flags that stop session hijacking, XSS theft and CSRF.",
   },
   {
-    icon: "🔎",
+    icon: "eye",
     title: "Information Disclosure",
     body: "Leaky Server and X-Powered-By banners, risky HTTP methods, and whether you publish a security.txt for responsible disclosure.",
   },
   {
-    icon: "📄",
+    icon: "file-text",
     title: "Actionable reports",
     body: "Every issue ships with a plain-English explanation and a copy-paste fix for nginx, Apache, Express or your DNS — exportable as a clean PDF.",
   },
@@ -164,7 +165,7 @@ export default function Page() {
           {CATEGORIES.map((c) => (
             <article key={c.title} className="feature">
               <div className="feature-icon" aria-hidden="true">
-                {c.icon}
+                <Icon name={c.icon} size={22} />
               </div>
               <h3>{c.title}</h3>
               <p>{c.body}</p>

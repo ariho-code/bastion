@@ -1,12 +1,13 @@
+import type { jsPDF as JsPDFType } from "jspdf";
 import type { ScanResult, Finding } from "./scanner/types";
 import { brand } from "./brand";
 
 const GRADE_RGB: Record<string, [number, number, number]> = {
-  A: [34, 197, 94],
-  B: [132, 204, 22],
-  C: [234, 179, 8],
-  D: [249, 115, 22],
-  F: [239, 68, 68],
+  A: [22, 163, 74],
+  B: [101, 163, 13],
+  C: [202, 138, 4],
+  D: [234, 88, 12],
+  F: [220, 38, 38],
 };
 
 const STATUS_LABEL: Record<Finding["status"], string> = {
@@ -16,8 +17,16 @@ const STATUS_LABEL: Record<Finding["status"], string> = {
   info: "INFO",
 };
 
-/** Generate and download a branded PDF report for a scan. Client-side only. */
-export async function downloadReport(result: ScanResult): Promise<void> {
+const VERDICT: Record<string, string> = {
+  A: "Excellent — well ahead of most of the web.",
+  B: "Good — a few quick wins left to reach an A.",
+  C: "Fair — some important protections are missing.",
+  D: "At risk — several key defenses are absent.",
+  F: "Critical — core protections are missing.",
+};
+
+/** Build the branded jsPDF document (shared by client download & server email). */
+export async function buildReportDoc(result: ScanResult): Promise<JsPDFType> {
   const { jsPDF } = await import("jspdf");
   const doc = new jsPDF({ unit: "pt", format: "a4" });
 
@@ -35,7 +44,7 @@ export async function downloadReport(result: ScanResult): Promise<void> {
   };
 
   // Header band
-  doc.setFillColor(11, 15, 22);
+  doc.setFillColor(10, 14, 20);
   doc.rect(0, 0, pageW, 96, "F");
   doc.setTextColor(45, 212, 191);
   doc.setFont("helvetica", "bold");
@@ -63,16 +72,20 @@ export async function downloadReport(result: ScanResult): Promise<void> {
 
   doc.setTextColor(20, 26, 34);
   doc.setFontSize(18);
-  doc.text(result.host, margin + 104, y + 24);
+  doc.text(result.host, margin + 104, y + 22);
   doc.setFont("helvetica", "normal");
   doc.setFontSize(11);
   doc.setTextColor(90, 100, 115);
-  doc.text(`Overall security score: ${result.score}/100`, margin + 104, y + 46);
+  doc.text(`Overall security score: ${result.score}/100`, margin + 104, y + 44);
   doc.text(
     `${result.passed} passed  ·  ${result.warnings} warnings  ·  ${result.failed} failed`,
     margin + 104,
-    y + 64
+    y + 62
   );
+  doc.setTextColor(g[0], g[1], g[2]);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(10);
+  doc.text(VERDICT[result.grade] || "", margin + 104, y + 80);
   y += 84 + 28;
 
   // Category scores
@@ -88,12 +101,11 @@ export async function downloadReport(result: ScanResult): Promise<void> {
     doc.setFontSize(10);
     doc.setTextColor(60, 70, 85);
     doc.text(c.label, margin, y + 10);
-    // bar
     const barX = margin + 150;
     const barW = contentW - 150 - 42;
     doc.setFillColor(230, 234, 239);
     doc.roundedRect(barX, y, barW, 10, 5, 5, "F");
-    const cg = c.score >= 80 ? [34, 197, 94] : c.score >= 55 ? [234, 179, 8] : [239, 68, 68];
+    const cg = c.score >= 80 ? [22, 163, 74] : c.score >= 55 ? [202, 138, 4] : [220, 38, 38];
     doc.setFillColor(cg[0], cg[1], cg[2]);
     doc.roundedRect(barX, y, Math.max(6, (barW * c.score) / 100), 10, 5, 5, "F");
     doc.setTextColor(60, 70, 85);
@@ -114,9 +126,9 @@ export async function downloadReport(result: ScanResult): Promise<void> {
   y += 18;
 
   const statusColor: Record<Finding["status"], [number, number, number]> = {
-    pass: [34, 197, 94],
-    warn: [234, 179, 8],
-    fail: [239, 68, 68],
+    pass: [22, 163, 74],
+    warn: [202, 138, 4],
+    fail: [220, 38, 38],
     info: [120, 135, 150],
   };
 
@@ -175,5 +187,18 @@ export async function downloadReport(result: ScanResult): Promise<void> {
     doc.text(`${i} / ${pages}`, pageW - margin, pageH - 24, { align: "right" });
   }
 
+  return doc;
+}
+
+/** Client-side: build and trigger a browser download. */
+export async function downloadReport(result: ScanResult): Promise<void> {
+  const doc = await buildReportDoc(result);
   doc.save(`${brand.name}-report-${result.host}.pdf`);
+}
+
+/** Server-side: build and return the PDF as a Buffer for email attachment. */
+export async function renderReportPdfBuffer(result: ScanResult): Promise<Buffer> {
+  const doc = await buildReportDoc(result);
+  const ab = doc.output("arraybuffer");
+  return Buffer.from(ab as ArrayBuffer);
 }

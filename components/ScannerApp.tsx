@@ -5,8 +5,13 @@ import type { ScanResult, Finding, Category } from "@/lib/scanner/types";
 import { brand } from "@/lib/brand";
 import { downloadReport } from "@/lib/pdf";
 import ScoreRing from "./ScoreRing";
+import CategoryChart from "./CategoryChart";
+import UpgradeModal from "./UpgradeModal";
+import Icon from "./Icon";
 
 const EXAMPLES = ["github.com", "stripe.com", "wikipedia.org"];
+const FREE_SCAN_LIMIT = 20; // generous free tier; heavy users are nudged to Pro
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 const CATEGORY_BLURB: Record<Category, string> = {
   transport: "HTTPS, redirects, HSTS & TLS certificate",
@@ -30,6 +35,26 @@ function gradeColor(grade: string): string {
   );
 }
 
+function todayKey(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+function getQuota(): number {
+  try {
+    const raw = JSON.parse(localStorage.getItem("bastion:quota") || "{}");
+    return raw.day === todayKey() ? raw.count || 0 : 0;
+  } catch {
+    return 0;
+  }
+}
+function bumpQuota(): void {
+  try {
+    const count = getQuota() + 1;
+    localStorage.setItem("bastion:quota", JSON.stringify({ day: todayKey(), count }));
+  } catch {
+    /* noop */
+  }
+}
+
 interface HistoryItem {
   host: string;
   grade: string;
@@ -46,6 +71,11 @@ export default function ScannerApp() {
   const [open, setOpen] = useState<Record<string, boolean>>({});
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [copied, setCopied] = useState<string>("");
+  const [modalOpen, setModalOpen] = useState(false);
+  const [modalReason, setModalReason] = useState<string | undefined>(undefined);
+  const [emailInput, setEmailInput] = useState("");
+  const [emailState, setEmailState] = useState<"idle" | "loading" | "done" | "error">("idle");
+  const [emailMsg, setEmailMsg] = useState("");
   const resultRef = useRef<HTMLDivElement>(null);
 
   // Load history
@@ -96,11 +126,23 @@ export default function ScannerApp() {
     async (target?: string) => {
       const t = (target ?? url).trim();
       if (!t || loading) return;
+
+      // Free-tier gate.
+      if (getQuota() >= FREE_SCAN_LIMIT) {
+        setModalReason(
+          `You've used all ${FREE_SCAN_LIMIT} free scans today. Upgrade to Pro for unlimited scans and monitoring.`
+        );
+        setModalOpen(true);
+        return;
+      }
+
       if (target) setUrl(target);
       setLoading(true);
       setError("");
       setResult(null);
       setOpen({});
+      setEmailState("idle");
+      setEmailMsg("");
       try {
         const res = await fetch("/api/scan", {
           method: "POST",
@@ -110,6 +152,7 @@ export default function ScannerApp() {
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || "Scan failed. Please try again.");
         setResult(data as ScanResult);
+        bumpQuota();
         saveHistory(data as ScanResult);
         setTimeout(() => resultRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
       } catch (e: any) {
@@ -121,14 +164,9 @@ export default function ScannerApp() {
     [url, loading, saveHistory]
   );
 
-  function upgrade(plan: string) {
-    if (brand.checkoutUrl) {
-      window.open(brand.checkoutUrl, "_blank", "noopener");
-    } else {
-      alert(
-        `${plan} is launching soon. Add your checkout link in lib/brand.ts (Lemon Squeezy / Paddle / Polar) to accept payments.`
-      );
-    }
+  function openUpgrade(reason?: string) {
+    setModalReason(reason);
+    setModalOpen(true);
   }
 
   async function copy(text: string, key: string) {
@@ -146,7 +184,6 @@ export default function ScannerApp() {
     const link = `${window.location.origin}/?url=${encodeURIComponent(result.host)}&grade=${encodeURIComponent(
       result.grade
     )}&score=${result.score}`;
-    // Native share sheet on mobile (bigger reach), copy-to-clipboard elsewhere.
     const nav = navigator as Navigator & { share?: (data: ShareData) => Promise<void> };
     if (nav.share && /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent)) {
       try {
@@ -163,6 +200,32 @@ export default function ScannerApp() {
     copy(link, "share");
   }
 
+  async function emailReport() {
+    if (!result) return;
+    const to = emailInput.trim().toLowerCase();
+    if (!EMAIL_RE.test(to)) {
+      setEmailState("error");
+      setEmailMsg("Please enter a valid email address.");
+      return;
+    }
+    setEmailState("loading");
+    setEmailMsg("");
+    try {
+      const res = await fetch("/api/report", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: to, url: result.host }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Couldn't send the report.");
+      setEmailState("done");
+      setEmailMsg("Sent — check your inbox for the report and PDF.");
+    } catch (e: any) {
+      setEmailState("error");
+      setEmailMsg(e?.message || "Couldn't send the report.");
+    }
+  }
+
   const counts = result
     ? { pass: result.passed, warn: result.warnings, fail: result.failed }
     : null;
@@ -172,7 +235,7 @@ export default function ScannerApp() {
       <div className="scan-shell" id="scan">
         <div className="scan-box">
           <span className="scan-lock" aria-hidden="true">
-            🔒
+            <Icon name="lock" size={17} />
           </span>
           <input
             className="scan-input"
@@ -260,19 +323,27 @@ export default function ScannerApp() {
               </div>
               <div className="actions">
                 <button className="act act-primary" onClick={() => downloadReport(result)}>
-                  ⬇ Download PDF report
+                  <Icon name="download" size={16} /> Download PDF
                 </button>
                 <button className="act" onClick={shareLink}>
-                  {copied === "share" ? "Link copied ✓" : "🔗 Share result"}
+                  {copied === "share" ? (
+                    <>
+                      <Icon name="check" size={16} /> Link copied
+                    </>
+                  ) : (
+                    <>
+                      <Icon name="share" size={16} /> Share result
+                    </>
+                  )}
                 </button>
                 <button className="act" onClick={() => runScan(result.host)}>
-                  ↻ Re-scan
+                  <Icon name="refresh" size={16} /> Re-scan
                 </button>
               </div>
             </div>
           </div>
 
-          {/* Category breakdown */}
+          {/* Category rings */}
           <div className="cats">
             {result.categories.map((c) => (
               <div className="cat" key={c.category}>
@@ -284,6 +355,49 @@ export default function ScannerApp() {
               </div>
             ))}
           </div>
+
+          {/* Stats chart */}
+          <CategoryChart categories={result.categories} />
+
+          {/* Email report capture */}
+          <div className="email-capture">
+            <div className="email-capture-text">
+              <span className="email-capture-title">
+                <Icon name="send" size={16} /> Email this report
+              </span>
+              <span className="email-capture-sub">
+                Get the full breakdown and a branded PDF in your inbox — free.
+              </span>
+            </div>
+            {emailState === "done" ? (
+              <div className="email-done">
+                <Icon name="check" size={17} /> {emailMsg}
+              </div>
+            ) : (
+              <div className="email-form">
+                <input
+                  className="email-input"
+                  type="email"
+                  inputMode="email"
+                  placeholder="you@company.com"
+                  value={emailInput}
+                  onChange={(e) => setEmailInput(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && emailReport()}
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  aria-label="Email address for report"
+                />
+                <button className="email-btn" onClick={emailReport} disabled={emailState === "loading"}>
+                  {emailState === "loading" ? <span className="spinner" /> : "Send report"}
+                </button>
+              </div>
+            )}
+          </div>
+          {emailState === "error" && (
+            <div className="email-error" role="alert">
+              {emailMsg}
+            </div>
+          )}
 
           {/* Findings */}
           <div className="findings">
@@ -312,12 +426,19 @@ export default function ScannerApp() {
                 and exports white-label reports for clients.
               </span>
             </div>
-            <button className="upsell-btn" onClick={() => upgrade("Pro")}>
-              Start monitoring →
+            <button className="upsell-btn" onClick={() => openUpgrade()}>
+              Start monitoring <Icon name="arrow-right" size={16} />
             </button>
           </div>
         </section>
       )}
+
+      <UpgradeModal
+        open={modalOpen}
+        onClose={() => setModalOpen(false)}
+        plan="Pro"
+        reason={modalReason}
+      />
     </>
   );
 }
