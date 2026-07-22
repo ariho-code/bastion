@@ -23,6 +23,7 @@ import (
 	_ "github.com/ariho-code/bastionscan/engine/internal/modules/content"
 	_ "github.com/ariho-code/bastionscan/engine/internal/modules/cookies"
 	_ "github.com/ariho-code/bastionscan/engine/internal/modules/cors"
+	_ "github.com/ariho-code/bastionscan/engine/internal/modules/discovery"
 	_ "github.com/ariho-code/bastionscan/engine/internal/modules/dns"
 	_ "github.com/ariho-code/bastionscan/engine/internal/modules/exposure"
 	_ "github.com/ariho-code/bastionscan/engine/internal/modules/fingerprint"
