@@ -136,12 +136,12 @@ interface VerifyRecord {
 // --- helpers ----------------------------------------------------------------
 
 const STAGES = [
-  "Resolving target & network…",
-  "Negotiating TLS handshakes…",
-  "Mapping attack surface…",
-  "Running ownership-gated DAST…",
-  "Industry vertical probes…",
-  "AI brain learning & risk scoring…",
+  "Checking the connection…",
+  "Reviewing encryption…",
+  "Mapping exposed services…",
+  "Running deep security checks…",
+  "Analyzing industry risks…",
+  "Preparing your report…",
 ];
 
 function riskColor(level: string): string {
@@ -684,43 +684,30 @@ function Report({
 
       {analysis.ai && (
         <section className="av-ai">
-          <h4 className="av-card-title">
-            AI security brain{" "}
-            <span style={{ fontWeight: 400, color: "#94a3b8", fontSize: "0.85em" }}>
-              ({analysis.ai.provider}/{analysis.ai.model || analysis.ai.source})
-            </span>
-          </h4>
+          <h4 className="av-card-title">Security advisor</h4>
           <p className="av-ai-summary">{analysis.ai.summary}</p>
           {analysis.ai.vertical_advice && (
-            <p className="av-ai-vert">
-              <strong>Vertical:</strong> {analysis.ai.vertical_advice}
-            </p>
+            <p className="av-ai-vert">{analysis.ai.vertical_advice}</p>
           )}
           {analysis.ai.top_priorities?.length > 0 && (
-            <ul className="av-ai-list">
-              {analysis.ai.top_priorities.slice(0, 5).map((p, i) => (
-                <li key={i}>
-                  <strong>{p.title}</strong>
-                  {p.why ? ` — ${p.why}` : ""}
-                  {p.effort ? ` (${p.effort})` : ""}
-                </li>
-              ))}
-            </ul>
-          )}
-          <p className="av-ai-meta">
-            Confidence {(analysis.ai.confidence * 100).toFixed(0)}% · learned from{" "}
-            {analysis.ai.learning_lessons_used} past lesson(s)
-            {typeof analysis.ai.rag_hits === "number" ? ` · RAG ${analysis.ai.rag_hits} hit(s)` : ""}
-            {analysis.scan_id ? ` · scan ${analysis.scan_id.slice(0, 8)}` : ""}
-          </p>
-          {analysis.ai.rag_citations && analysis.ai.rag_citations.length > 0 && (
-            <ul className="av-ai-list">
-              {analysis.ai.rag_citations.slice(0, 3).map((c, i) => (
-                <li key={i}>
-                  <em>memory:</em> {c}
-                </li>
-              ))}
-            </ul>
+            <>
+              <p className="av-ai-meta" style={{ marginBottom: "0.35rem" }}>
+                Suggested next steps
+              </p>
+              <ul className="av-ai-list">
+                {analysis.ai.top_priorities.slice(0, 5).map((p, i) => (
+                  <li key={i}>
+                    <strong>{p.title}</strong>
+                    {p.why ? ` — ${p.why}` : ""}
+                    {p.effort ? (
+                      <span className="av-effort" style={{ marginLeft: 6 }}>
+                        {p.effort}
+                      </span>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+            </>
           )}
           <AICopilot
             target={analysis.target}
@@ -876,9 +863,9 @@ function Report({
       {/* Active AppSec findings + human learning feedback */}
       {activeFindings.length > 0 && (
         <section className="av-card">
-          <h4 className="av-card-title">Active AppSec &amp; scam signals</h4>
+          <h4 className="av-card-title">Active checks &amp; scam signals</h4>
           <p className="av-ai-meta" style={{ marginTop: 0 }}>
-            Label findings to train the brain — false positives get down-weighted on future scans.
+            Mark anything that looks wrong so future reports get smarter for your team.
           </p>
           <div className="av-rem">
             {activeFindings
@@ -901,13 +888,13 @@ function Report({
                     {f.evidence && <p className="av-fix">evidence: {f.evidence}</p>}
                     <div className="av-fb">
                       <button type="button" className="av-fb-btn" onClick={() => sendFeedback(f.id, "true_positive")}>
-                        True positive
+                        Looks right
                       </button>
                       <button type="button" className="av-fb-btn" onClick={() => sendFeedback(f.id, "false_positive")}>
-                        False positive
+                        Looks wrong
                       </button>
                       <button type="button" className="av-fb-btn" onClick={() => sendFeedback(f.id, "fixed")}>
-                        Fixed
+                        We fixed this
                       </button>
                     </div>
                   </div>
@@ -1073,9 +1060,9 @@ function AICopilot({
         body: JSON.stringify({ message, target, vertical, scan_context: scanContext }),
       });
       const data = await res.json();
-      setReply(data.reply || data.error || "No reply.");
+      setReply(data.reply || data.error || "Something went wrong. Please try again.");
     } catch {
-      setReply("AI brain unavailable.");
+      setReply("Advisor is briefly unavailable. Please try again in a moment.");
     } finally {
       setBusy(false);
     }
@@ -1088,8 +1075,8 @@ function AICopilot({
           value={q}
           onChange={(e) => setQ(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && ask()}
-          placeholder="Ask the AI brain (RAG-grounded)…"
-          aria-label="Ask AI copilot"
+          placeholder="Ask a question — e.g. What should we fix first?"
+          aria-label="Ask security advisor"
         />
         <button type="button" onClick={ask} disabled={busy}>
           {busy ? "…" : "Ask"}

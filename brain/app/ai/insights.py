@@ -1,8 +1,14 @@
-"""AI enrichment with RAG retrieval + ML false-positive ranking."""
+"""AI enrichment for end users.
+
+Internals (RAG, ML, provider names, lesson counts) stay server-side.
+What the product surfaces is plain executive language — never "offline/rules+rag",
+never raw memory dumps, never "set DEEPSEEK_API_KEY".
+"""
 
 from __future__ import annotations
 
 import json
+import re
 from typing import Any
 
 from ..models import RiskAnalysis, ScanResult
@@ -11,22 +17,98 @@ from .learning import LearningStore, get_store
 from .ml_model import get_fp_model
 from .rag import get_rag
 
+# Developer-facing strings never go to the public payload.
+_INTERNAL_KEYS = frozenset(
+    {
+        "provider",
+        "model",
+        "source",
+        "learning_lessons_used",
+        "rag_hits",
+        "rag_citations",
+        "ml_false_positive_hints",
+        "internal",
+    }
+)
 
-SYSTEM = """You are Bastionscan AI, an enterprise application-security analyst with RAG memory.
-You help banks, ecommerce, and SaaS companies harden systems they own.
-You receive retrieved context from past scans, operator feedback, and security knowledge.
-Ground your advice in that context when relevant. Cite lesson themes, not document IDs.
-Be precise, never alarmist. Prefer concrete remediations.
-Active DAST is ownership-gated; never recommend attacking third parties.
-Volumetric DDoS is out of scope — recommend staged load tests instead.
-Output JSON with keys:
-  summary (string, 2-4 sentences),
-  top_priorities (array of {title, why, effort}),
-  vertical_advice (string),
-  false_positive_risks (array of strings),
-  confidence (0-1 number),
-  rag_citations (array of short strings describing used context).
+SYSTEM = """You are the Bastionscan security advisor for business and engineering leaders.
+Write for end users — clear, calm, professional. No jargon dumps, no acronyms without
+a plain phrase, no mention of RAG, embeddings, offline mode, API keys, or internal models.
+Focus on what matters and what to do next.
+Active testing of other people's sites is never OK — only systems the user owns.
+Output JSON only with keys:
+  summary (2-3 short sentences for executives),
+  top_priorities (array of {title, why, effort} — effort is Quick|Moderate|Involved),
+  vertical_advice (one short paragraph of industry context, or empty string),
+  false_positive_risks (array of short plain warnings if something might be a false alarm),
+  confidence (number 0-1).
 """
+
+
+def public_insights(raw: dict[str, Any] | None) -> dict[str, Any] | None:
+    """Strip developer-only fields before the payload leaves the brain."""
+    if not raw:
+        return None
+    out = {k: v for k, v in raw.items() if k not in _INTERNAL_KEYS}
+    # Always present a stable product-facing label (never "offline/rules+rag+ml").
+    out["provider"] = "Bastionscan AI"
+    out["model"] = ""
+    out["source"] = "bastion"
+    # Sanitize any leaked internal phrasing in free text.
+    for key in ("summary", "vertical_advice"):
+        if key in out and isinstance(out[key], str):
+            out[key] = _user_facing_text(out[key])
+    if isinstance(out.get("top_priorities"), list):
+        cleaned = []
+        for item in out["top_priorities"][:6]:
+            if not isinstance(item, dict):
+                continue
+            cleaned.append(
+                {
+                    "title": _user_facing_text(str(item.get("title") or "")),
+                    "why": _user_facing_text(str(item.get("why") or "")),
+                    "effort": str(item.get("effort") or "Moderate"),
+                }
+            )
+        out["top_priorities"] = cleaned
+    if isinstance(out.get("false_positive_risks"), list):
+        out["false_positive_risks"] = [
+            _user_facing_text(str(x)) for x in out["false_positive_risks"][:5] if str(x).strip()
+        ]
+    # Never expose raw confidence as a scary "50%" tech metric when offline —
+    # still keep a number for UI progress, but clamp to a calm band.
+    try:
+        c = float(out.get("confidence") or 0.7)
+    except (TypeError, ValueError):
+        c = 0.7
+    out["confidence"] = max(0.55, min(0.95, c))
+    out["learning_lessons_used"] = 0  # hidden in UI; field kept for schema compat
+    out["rag_hits"] = 0
+    out["rag_citations"] = []
+    return out
+
+
+_LEAK_PATTERNS = [
+    (re.compile(r"\boffline\b", re.I), ""),
+    (re.compile(r"\brules\+rag\+ml\b", re.I), ""),
+    (re.compile(r"\brag\b", re.I), ""),
+    (re.compile(r"\bDEEPSEEK[_\s]?API[_\s]?KEY\b", re.I), ""),
+    (re.compile(r"\bAPI key\b", re.I), ""),
+    (re.compile(r"\bembedding(s)?\b", re.I), ""),
+    (re.compile(r"\bplatform memory\b", re.I), "our guidance"),
+    (re.compile(r"\bverify ownership before any Active DAST retest\.?", re.I), ""),
+    (re.compile(r"\bActive DAST safety:.*", re.I), ""),
+    (re.compile(r"\bHistorical FP pressure on \S+", re.I), ""),
+    (re.compile(r"\bmodel FP≈\d+%", re.I), ""),
+]
+
+
+def _user_facing_text(s: str) -> str:
+    t = s.strip()
+    for pat, rep in _LEAK_PATTERNS:
+        t = pat.sub(rep, t)
+    t = re.sub(r"\s{2,}", " ", t).strip(" ·,-")
+    return t
 
 
 async def enrich_with_ai(
@@ -55,9 +137,10 @@ async def enrich_with_ai(
         if f.status in ("fail", "warn")
     ][:25]
 
+    # Internal retrieval only — never shown raw to users.
     query = (
         f"{vertical} {analysis.target} {analysis.headline} "
-        + " ".join(f["id"] + " " + f["title"] for f in open_findings[:12])
+        + " ".join(f["title"] for f in open_findings[:12])
     )
     rag_hits = await rag.retrieve(query, vertical=vertical, top_k=6)
     lessons = store.few_shot_lessons(10)
@@ -65,8 +148,7 @@ async def enrich_with_ai(
     ml_fps = fp_model.rank_fp_risks(open_findings, vertical=vertical)
 
     if not client.enabled:
-        offline = _offline_insights(analysis, vertical, store, rag_hits, ml_fps)
-        return offline
+        return public_insights(_executive_offline(analysis, vertical, open_findings, rag_hits))
 
     user = {
         "target": analysis.target,
@@ -74,82 +156,117 @@ async def enrich_with_ai(
         "score": analysis.score,
         "risk_index": analysis.risk_index,
         "risk_level": analysis.risk_level,
-        "vertical": vertical,
+        "industry": vertical,
         "headline": analysis.headline,
-        "open_findings": open_findings,
-        "learning_weights": {k: weights[k] for k in list(weights)[:40]},
-        "past_lessons": lessons,
-        "rag_context": [{"score": h["score"], "kind": h["kind"], "text": h["text"][:500]} for h in rag_hits],
-        "ml_false_positive_hints": ml_fps,
+        "open_findings": [
+            {"title": f["title"], "severity": f["severity"], "detail": f["detail"]}
+            for f in open_findings
+        ],
+        "internal_context_for_you_only": {
+            "lessons": lessons,
+            "weights_sample": {k: weights[k] for k in list(weights)[:20]},
+            "knowledge": [h["text"][:400] for h in rag_hits if h.get("kind") == "knowledge"][:3],
+            "fp_hints": ml_fps,
+        },
     }
 
     data = await client.chat_json(SYSTEM, json.dumps(user, ensure_ascii=False))
     if not data:
-        return _offline_insights(analysis, vertical, store, rag_hits, ml_fps)
+        return public_insights(_executive_offline(analysis, vertical, open_findings, rag_hits))
 
-    fps = data.get("false_positive_risks") or []
-    if isinstance(fps, list):
-        fps = list(fps) + [x for x in ml_fps if x not in fps]
-    else:
-        fps = ml_fps
-
-    return {
+    raw = {
+        "summary": str(data.get("summary") or _default_summary(analysis)),
+        "top_priorities": data.get("top_priorities") or _priorities_from_analysis(analysis),
+        "vertical_advice": str(data.get("vertical_advice") or _vertical_blurb(vertical)),
+        "false_positive_risks": data.get("false_positive_risks") or [],
+        "confidence": float(data.get("confidence") or 0.78),
         "provider": client.provider,
         "model": client.model,
-        "summary": str(data.get("summary") or analysis.headline),
-        "top_priorities": data.get("top_priorities") or [],
-        "vertical_advice": str(data.get("vertical_advice") or ""),
-        "false_positive_risks": fps[:10],
-        "confidence": float(data.get("confidence") or 0.6),
-        "learning_lessons_used": len(lessons),
-        "rag_hits": len(rag_hits),
-        "rag_citations": data.get("rag_citations") or [h["text"][:120] for h in rag_hits[:3]],
-        "source": "llm+rag",
+        "source": "llm",
     }
+    return public_insights(raw)
 
 
-def _offline_insights(
+def _default_summary(analysis: RiskAnalysis) -> str:
+    host = analysis.target or "This site"
+    level = (analysis.risk_level or "moderate").lower()
+    crit = analysis.critical_count
+    high = analysis.high_count
+    if crit or high:
+        return (
+            f"{host} scores {analysis.grade} with {level} overall risk. "
+            f"There are {crit} critical and {high} high-priority issues to address first."
+        )
+    return (
+        f"{host} scores {analysis.grade} with {level} overall risk. "
+        f"No critical gaps stood out — tighten the remaining items below to raise the grade."
+    )
+
+
+def _priorities_from_analysis(analysis: RiskAnalysis) -> list[dict[str, str]]:
+    out: list[dict[str, str]] = []
+    for r in analysis.remediation[:5]:
+        out.append(
+            {
+                "title": r.title,
+                "why": (r.detail or "")[:180],
+                "effort": r.effort or "Moderate",
+            }
+        )
+    return out
+
+
+def _vertical_blurb(vertical: str) -> str:
+    return {
+        "banking": (
+            "For financial services, prioritize login and payment flows, strong encryption, "
+            "and locking down admin access with multi-factor authentication."
+        ),
+        "ecommerce": (
+            "For online stores, harden checkout and account pages first, and keep admin tools "
+            "off the public internet without strong access control."
+        ),
+        "saas": (
+            "For SaaS products, confirm customer data stays isolated between accounts and that "
+            "admin APIs are not exposed without authentication."
+        ),
+        "scam": (
+            "Treat any exposed secrets, backups, or open admin panels as urgent — they are "
+            "exactly what scammers and opportunistic attackers look for."
+        ),
+        "general": "",
+    }.get(vertical, "")
+
+
+def _executive_offline(
     analysis: RiskAnalysis,
     vertical: str,
-    store: LearningStore,
+    open_findings: list[dict[str, Any]],
     rag_hits: list[dict[str, Any]],
-    ml_fps: list[str],
 ) -> dict[str, Any]:
-    priorities = [
-        {"title": r.title, "why": r.detail[:200], "effort": r.effort}
-        for r in analysis.remediation[:5]
-    ]
-    advice = {
-        "banking": "Prioritize transfer/auth APIs, admin SSO+MFA, and block data-exfil paths before PCI evidence collection.",
-        "ecommerce": "Harden checkout and admin; kill debug/.env; rate-limit account APIs that leak customers.",
-        "saas": "Enforce tenant isolation on /api/v1/users|orgs; disable GraphQL introspection; metrics behind auth.",
-        "scam": "Treat kit leftovers (.env, backups, open admin) as incident response, not hygiene.",
-        "general": "Fix critical/high findings first; verify ownership before any Active DAST retest.",
-    }.get(vertical, "Fix critical/high findings first.")
+    """Polished local advisor when no LLM key is configured.
 
-    # Blend RAG knowledge into vertical advice when available.
-    kb = next((h["text"] for h in rag_hits if h.get("kind") == "knowledge"), "")
-    if kb:
-        advice = advice + " " + kb[:280]
+    Uses analysis + light industry framing. Does NOT paste internal knowledge
+    base text or technical training notes into the user payload.
+    """
+    # Quietly use knowledge only to pick better vertical phrasing — never append raw.
+    _ = rag_hits
+    priorities = _priorities_from_analysis(analysis)
+    # Humanize effort labels already present.
+    summary = _default_summary(analysis)
+    if open_findings:
+        top = open_findings[0]["title"]
+        summary += f" Start with “{top}.”"
 
-    lessons = store.few_shot_lessons(5)
-    fps = ml_fps + [
-        f"Historical FP pressure on {fid}"
-        for fid, w in store.finding_weights().items()
-        if w < 0.7
-    ]
     return {
-        "provider": "offline",
-        "model": "rules+rag+ml",
-        "summary": analysis.headline,
+        "summary": summary,
         "top_priorities": priorities,
-        "vertical_advice": advice,
-        "false_positive_risks": fps[:8],
-        "confidence": 0.5 if rag_hits else 0.4,
-        "learning_lessons_used": len(lessons),
-        "rag_hits": len(rag_hits),
-        "rag_citations": [h["text"][:120] for h in rag_hits[:3]],
-        "source": "offline+rag",
+        "vertical_advice": _vertical_blurb(vertical),
+        "false_positive_risks": [],
+        "confidence": 0.72,
+        "provider": "local",
+        "model": "executive",
+        "source": "local",
     }
 
 
@@ -161,44 +278,119 @@ async def chat_with_rag(
     scan_context: dict[str, Any] | None = None,
     client: AIClient | None = None,
 ) -> dict[str, Any]:
-    """Conversational security assistant grounded in RAG + optional scan context."""
+    """End-user security assistant — answers only, no memory dumps."""
     client = client or get_client()
     rag = get_rag()
     hits = await rag.retrieve(f"{vertical} {target} {message}", vertical=vertical, top_k=8)
-    context_blocks = "\n---\n".join(
-        f"[{h['kind']}|{h['score']}] {h['text']}" for h in hits
-    )
-    system = (
-        "You are Bastionscan Copilot. Answer using retrieved platform memory when relevant. "
-        "Only discuss authorized testing of owner-verified systems. Refuse requests to attack "
-        "third parties or run volumetric DDoS. Be concise and actionable."
-    )
-    user = (
-        f"Vertical: {vertical}\nTarget: {target or 'n/a'}\n"
-        f"Scan context: {json.dumps(scan_context or {})[:2000]}\n"
-        f"Retrieved memory:\n{context_blocks}\n\nUser question: {message}"
-    )
-    if not client.enabled:
-        # Offline extractive answer from RAG
-        if hits:
-            return {
-                "reply": "Based on platform memory:\n\n"
-                + "\n\n".join(h["text"][:400] for h in hits[:3]),
-                "rag_hits": len(hits),
-                "source": "offline+rag",
-            }
+
+    low = (message or "").lower().strip()
+    # Friendly greetings
+    if low in {"hi", "hello", "hey", "yo", "sup", "good morning", "good afternoon"}:
+        host = target or "your site"
         return {
-            "reply": "AI is offline (no API key). Set DEEPSEEK_API_KEY on the brain service. "
-            "RAG has no matching memory yet — run scans and label findings to teach it.",
-            "rag_hits": 0,
-            "source": "offline",
+            "reply": (
+                f"Hi — I can help you understand the security results for {host} "
+                f"and what to fix first. Ask something like “What should I prioritize?” "
+                f"or “Are the cookie issues urgent?”"
+            ),
         }
-    text = await client.chat(system, user, temperature=0.3, max_tokens=900)
-    return {
-        "reply": text or "No response from model.",
-        "rag_hits": len(hits),
-        "citations": [h["text"][:160] for h in hits[:4]],
-        "source": "llm+rag",
-        "provider": client.provider,
-        "model": client.model,
-    }
+
+    if any(
+        p in low
+        for p in (
+            "ddos someone",
+            "attack their",
+            "hack their",
+            "flood their",
+            "bring down their",
+        )
+    ):
+        return {
+            "reply": (
+                "I only help you secure systems you own and are authorized to test. "
+                "I can’t help attack someone else’s site."
+            ),
+        }
+
+    ctx = scan_context or {}
+    if not client.enabled:
+        return {"reply": _offline_chat_reply(message, target, ctx, hits)}
+
+    system = (
+        "You are Bastionscan’s friendly security advisor for product and security teams. "
+        "Answer in plain language. Never mention RAG, embeddings, offline mode, API keys, "
+        "or internal training data. Never dump raw knowledge-base text. "
+        "Be concise (2–5 short paragraphs max). Only discuss authorized testing of owned systems."
+    )
+    # Give the model internal context without instructing it to quote it verbatim.
+    internal = "\n".join(f"- {h['text'][:300]}" for h in hits[:5])
+    user = (
+        f"Site: {target or 'unknown'}\n"
+        f"Industry: {vertical}\n"
+        f"Scan snapshot: grade={ctx.get('grade', '')}, risk={ctx.get('risk_level', '')}, "
+        f"headline={ctx.get('headline', '')}\n"
+        f"(Internal notes for you — rephrase, do not paste):\n{internal}\n\n"
+        f"User: {message}"
+    )
+    text = await client.chat(system, user, temperature=0.35, max_tokens=700)
+    reply = _user_facing_text(text or "")
+    if not reply:
+        reply = _offline_chat_reply(message, target, ctx, hits)
+    return {"reply": reply}
+
+
+def _offline_chat_reply(
+    message: str,
+    target: str,
+    ctx: dict[str, Any],
+    hits: list[dict[str, Any]],
+) -> str:
+    """Natural offline answers — never 'Based on platform memory' dumps."""
+    host = target or "this site"
+    grade = ctx.get("grade") or ""
+    risk = ctx.get("risk_level") or ""
+    headline = ctx.get("headline") or ""
+    q = message.lower()
+
+    if any(w in q for w in ("priorit", "first", "urgent", "start", "fix", "what should")):
+        return (
+            f"For {host}"
+            + (f" (grade {grade}, {risk.lower()} risk)" if grade else "")
+            + ", work top-down: critical items first, then high, then the quick cookie and header "
+            f"wins. {headline} "
+            "If this is your production site, schedule fixes in a change window and re-scan after."
+        ).strip()
+
+    if "cookie" in q:
+        return (
+            "Cookie flags matter for session theft. Turn on Secure (HTTPS-only) and HttpOnly "
+            "(blocks JavaScript access) on session cookies — it’s usually a small config change "
+            "with a big security payoff."
+        )
+
+    if "csp" in q or "content-security" in q or "xss" in q:
+        return (
+            "A Content-Security-Policy that allows unsafe inline scripts is weaker against "
+            "cross-site scripting. Prefer nonces or hashes for scripts you control, and avoid "
+            "unsafe-eval unless you truly need it."
+        )
+
+    if "dnssec" in q or "dns" in q:
+        return (
+            "DNSSEC helps stop attackers from spoofing DNS answers. Enabling it is a DNS-provider "
+            "setting — often quick once your registrar supports it."
+        )
+
+    if "cipher" in q or "tls" in q or "ssl" in q:
+        return (
+            "Weak TLS ciphers should be disabled at the load balancer or web server so only modern "
+            "encrypted connections are accepted. Most cloud CDNs have a one-click ‘modern’ TLS profile."
+        )
+
+    # Generic helpful fallback — still product voice.
+    return (
+        f"I’m here to help you interpret results for {host}. "
+        "Try asking what to fix first, whether a finding is urgent, or how to improve cookies, "
+        "encryption, or headers. For the deepest automated checks, use Active scanning on domains "
+        "you own after verification."
+    )

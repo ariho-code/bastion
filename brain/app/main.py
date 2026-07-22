@@ -113,10 +113,10 @@ async def assess_endpoint(req: AssessRequest) -> AssessResponse:
         raw_ai = await enrich_with_ai(scan_result, analysis, vertical=vertical)
         if raw_ai:
             ai_block = AIInsights.model_validate(raw_ai)
-            # Lead narrative with AI summary when available.
-            if ai_block.summary and ai_block.source == "llm":
-                analysis.summary = [ai_block.summary, *analysis.summary][:8]
-            if ai_block.vertical_advice:
+            # Lead narrative with advisor summary (always user-facing).
+            if ai_block.summary:
+                analysis.summary = [ai_block.summary, *analysis.summary][:6]
+            if ai_block.vertical_advice and ai_block.vertical_advice not in analysis.summary:
                 analysis.summary.append(ai_block.vertical_advice)
 
     analysis.ai = ai_block
@@ -280,4 +280,5 @@ async def ai_insight_endpoint(req: InsightRequest) -> dict[str, object]:
     )
     analysis = analyze(scan, learning_weights=get_store().finding_weights())
     raw_ai = await enrich_with_ai(scan, analysis, vertical=req.vertical or "general")
+    # Public: analysis + polished AI only (internals already stripped).
     return {"analysis": analysis.model_dump(), "ai": raw_ai}
