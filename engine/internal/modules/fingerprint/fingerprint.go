@@ -6,7 +6,6 @@ package fingerprint
 
 import (
 	"context"
-	"io"
 	"net/http"
 	"regexp"
 	"sort"
@@ -28,18 +27,17 @@ func (m *Module) Description() string {
 }
 func (m *Module) Supports(t *scan.Target) bool { return t.Host != "" }
 
-const maxBody = 300 * 1024 // read at most 300KB of HTML
-
 func (m *Module) Run(ctx context.Context, t *scan.Target, env *scan.Env) ([]scan.Finding, error) {
-	p, err := fetch(ctx, t, env)
-	if err != nil {
+	page := env.Page(ctx, t)
+	if page.Err != nil {
 		return []scan.Finding{{
 			ID: "surface.fingerprint", Category: scan.CategorySurface,
 			Title: "Technology fingerprint unavailable", Status: scan.StatusInfo,
 			Severity: scan.SeverityInfo, Detail: "Could not fetch the site to fingerprint it.",
-			Evidence: err.Error(),
+			Evidence: page.Err.Error(),
 		}}, nil
 	}
+	p := probeFrom(page)
 
 	var findings []scan.Finding
 	findings = append(findings, technologyFindings(p)...)
@@ -48,59 +46,21 @@ func (m *Module) Run(ctx context.Context, t *scan.Target, env *scan.Env) ([]scan
 	return findings, nil
 }
 
-// --- HTTP probe --------------------------------------------------------------
-
+// probe is the fingerprinter's view over a shared page fetch.
 type probe struct {
-	status      int
 	headers     http.Header
 	cookieNames []string
 	body        string
 	generator   string
-	finalURL    string
 }
 
-func fetch(ctx context.Context, t *scan.Target, env *scan.Env) (*probe, error) {
-	// Prefer HTTPS; fall back to whatever the caller gave us.
-	primary := *t.URL
-	if primary.Scheme == "http" {
-		primary.Scheme = "https"
+func probeFrom(page *scan.Page) *probe {
+	p := &probe{headers: page.Header, body: page.Body}
+	for _, c := range page.Cookies {
+		p.cookieNames = append(p.cookieNames, c.Name)
 	}
-	urls := []string{primary.String()}
-	if raw := t.URL.String(); raw != urls[0] {
-		urls = append(urls, raw)
-	}
-
-	var lastErr error
-	for _, u := range urls {
-		req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
-		if err != nil {
-			lastErr = err
-			continue
-		}
-		req.Header.Set("User-Agent", env.UserAgent)
-		req.Header.Set("Accept", "text/html,application/xhtml+xml,*/*")
-		resp, err := env.HTTP.Do(req)
-		if err != nil {
-			lastErr = err
-			continue
-		}
-		p := &probe{
-			status:   resp.StatusCode,
-			headers:  resp.Header,
-			finalURL: resp.Request.URL.String(),
-		}
-		for _, c := range resp.Cookies() {
-			p.cookieNames = append(p.cookieNames, c.Name)
-		}
-		if ct := resp.Header.Get("Content-Type"); strings.Contains(ct, "html") || ct == "" {
-			body, _ := io.ReadAll(io.LimitReader(resp.Body, maxBody))
-			p.body = string(body)
-			p.generator = extractGenerator(p.body)
-		}
-		resp.Body.Close()
-		return p, nil
-	}
-	return nil, lastErr
+	p.generator = extractGenerator(page.Body)
+	return p
 }
 
 var generatorRe = regexp.MustCompile(`(?i)<meta[^>]+name=["']generator["'][^>]+content=["']([^"']+)["']`)
