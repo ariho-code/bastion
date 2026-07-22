@@ -11,6 +11,7 @@ import (
 	"github.com/ariho-code/bastionscan/engine/internal/abuse"
 	"github.com/ariho-code/bastionscan/engine/internal/audit"
 	"github.com/ariho-code/bastionscan/engine/internal/auth"
+	"github.com/ariho-code/bastionscan/engine/internal/authz"
 	"github.com/ariho-code/bastionscan/engine/internal/scan"
 	"github.com/ariho-code/bastionscan/engine/internal/verify"
 )
@@ -92,6 +93,21 @@ func (s *Server) handleScan(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	target.Verified = req.Verified
+
+	// Authorization (RBAC + ABAC): the caller's role must permit scanning, and
+	// tenant-isolation policy must allow acting on this resource.
+	id := identityFrom(r.Context())
+	if d := authz.Authorize(authz.AccessRequest{
+		Subject:  s.subjectFor(id),
+		Action:   authz.PermScanRun,
+		Resource: authz.Resource{Type: "scan", Domain: target.Domain, Tenant: id.Tenant},
+	}); !d.Allow {
+		s.metrics.IncScanError()
+		s.auditEvent(r, "scan.denied", "denied", audit.SevWarning,
+			map[string]any{"reason": d.Reason, "target": target.Host})
+		writeError(w, http.StatusForbidden, d.Reason)
+		return
+	}
 
 	// Abuse validation beyond SSRF safety (embedded creds, non-web ports, …).
 	if err := abuse.Validate(target); err != nil {
@@ -189,10 +205,13 @@ func actorOf(id auth.Identity) string {
 // can be rendered as RFC 5424 syslog with ?format=rfc5424.
 func (s *Server) handleAudit(w http.ResponseWriter, r *http.Request) {
 	id := identityFrom(r.Context())
-	// Admin-only: agency tier, or any authenticated caller in dev.
-	if !s.cfg.AllowPrivate && id.Tier != auth.TierAgency {
-		s.auditEvent(r, "audit.access.denied", "denied", audit.SevWarning, nil)
-		writeError(w, http.StatusForbidden, "audit access requires an agency-tier key")
+	if d := authz.Authorize(authz.AccessRequest{
+		Subject:  s.subjectFor(id),
+		Action:   authz.PermAuditRead,
+		Resource: authz.Resource{Type: "audit", Tenant: id.Tenant},
+	}); !d.Allow {
+		s.auditEvent(r, "audit.access.denied", "denied", audit.SevWarning, map[string]any{"reason": d.Reason})
+		writeError(w, http.StatusForbidden, d.Reason)
 		return
 	}
 
