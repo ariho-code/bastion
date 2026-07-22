@@ -1,0 +1,62 @@
+# Bastionscan advanced backend — Render Blueprint.
+#
+# One click deploys both services:
+#   1. bastionscan-engine — the Go scanning engine (Docker, ./engine)
+#   2. bastionscan-brain   — the Python risk brain (Docker, ./brain), wired to
+#                            the engine automatically.
+#
+# Deploy:
+#   1. Push this repo to GitHub.
+#   2. Render Dashboard → New → Blueprint → pick this repo. Render reads this file.
+#   3. After both services are live, copy the brain's URL and set it on Vercel:
+#        BASTION_BRAIN_URL = https://bastionscan-brain.onrender.com
+#      The Next.js /advanced page proxies to the brain, which drives the engine.
+#
+# Both run on the free plan. Free instances sleep when idle; the first scan
+# after a nap takes a few extra seconds to wake them.
+
+services:
+  # --- Go scanning engine ----------------------------------------------------
+  - type: web
+    name: bastionscan-engine
+    runtime: docker
+    dockerfilePath: ./engine/Dockerfile
+    dockerContext: ./engine
+    plan: free
+    region: oregon
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: RATE_LIMIT_RPM
+        value: "60"
+      - key: MAX_CONCURRENCY
+        value: "8"
+      - key: SCAN_TIMEOUT
+        value: "60s"
+      - key: MODULE_TIMEOUT
+        value: "25s"
+      - key: ALLOWED_ORIGINS
+        value: "*"
+
+  # --- Python risk brain -----------------------------------------------------
+  - type: web
+    name: bastionscan-brain
+    runtime: docker
+    dockerfilePath: ./brain/Dockerfile
+    dockerContext: ./brain
+    plan: free
+    region: oregon
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      # Wired automatically to the engine service above. The brain normalizes a
+      # bare host into an https:// URL.
+      - key: ENGINE_URL
+        fromService:
+          type: web
+          name: bastionscan-engine
+          property: host
+      - key: ENGINE_TIMEOUT
+        value: "90"
+      - key: ALLOWED_ORIGINS
+        value: "*"

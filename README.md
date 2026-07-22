@@ -1,6 +1,42 @@
 # Bastionscan — Website Security Scanner
 
-A world-class, non-invasive website security scanner. Grades any site A–F across TLS, security headers, DNS/email, cookies, and info disclosure — with copy-paste fixes.
+A world-class website security platform. Grades any site A–F across TLS, security headers, DNS/email, cookies, and info disclosure — with copy-paste fixes.
+
+Bastionscan is a **polyglot, three-tier system** — see [ARCHITECTURE.md](./ARCHITECTURE.md):
+
+| Tier | Stack | Role |
+| ---- | ----- | ---- |
+| **Frontend** | Next.js + TypeScript (Vercel) | UI, SEO, and a fast passive scanner |
+| **Risk brain** | Python · FastAPI (Render) | Risk scoring + prioritized remediation — [`brain/`](./brain) |
+| **Scanning engine** | Go (Render) | Concurrent deep scanner, 9 self-registering modules — [`engine/`](./engine) |
+
+The **standard scan** is instant and self-contained. The **Advanced Deep Scan**
+(`/advanced`) drives the Go engine — deep TLS/cipher analysis, attack-surface
+mapping (ports, subdomains, fingerprinting), exposed-file probing, DNS/email
+auth, and threat intelligence — then the Python brain scores the risk and builds
+a prioritized fix roadmap.
+
+### Run the full stack locally
+
+```bash
+# 1) Engine (Go)          → http://localhost:8080
+cd engine && go run ./cmd/server
+
+# 2) Brain (Python)       → http://localhost:8090
+cd brain && python -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+ENGINE_URL=http://localhost:8080 uvicorn app.main:app --port 8090
+
+# 3) Frontend (Next.js)   → http://localhost:3000
+BASTION_BRAIN_URL=http://localhost:8090 npm run dev
+# open http://localhost:3000/advanced
+```
+
+Deploy the engine + brain to Render with one click via [`render.yaml`](./render.yaml),
+then set `BASTION_BRAIN_URL` on Vercel to the brain's URL.
+
+---
+
 
 ## Deploy to Vercel (recommended, free)
 
