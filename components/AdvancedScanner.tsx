@@ -41,6 +41,15 @@ interface RemediationItem {
   points_lost: number;
 }
 
+interface CVEMatch {
+  product: string;
+  version: string;
+  fixed_in: string;
+  severity: Severity;
+  cves: string[];
+  summary: string;
+}
+
 interface Analysis {
   target: string;
   grade: string;
@@ -55,6 +64,7 @@ interface Analysis {
   medium_count: number;
   low_count: number;
   category_risk: CategoryRisk[];
+  cve_matches: CVEMatch[];
   remediation: RemediationItem[];
 }
 
@@ -69,6 +79,7 @@ interface Scan {
   host: string;
   domain: string;
   profile: string;
+  verified: boolean;
   grade: string;
   score: number;
   findings: Finding[];
@@ -82,6 +93,12 @@ interface Scan {
 interface AssessResponse {
   scan: Scan;
   analysis: Analysis;
+}
+
+interface VerifyRecord {
+  domain: string;
+  record: string;
+  instruction: string;
 }
 
 // --- helpers ----------------------------------------------------------------
@@ -133,12 +150,28 @@ function gradeColor(grade: string): string {
 
 export default function AdvancedScanner() {
   const [target, setTarget] = useState("");
-  const [profile, setProfile] = useState<"standard" | "deep">("deep");
+  const [profile, setProfile] = useState<"standard" | "deep" | "active">("deep");
   const [loading, setLoading] = useState(false);
   const [stage, setStage] = useState(0);
   const [data, setData] = useState<AssessResponse | null>(null);
   const [error, setError] = useState("");
+  const [verify, setVerify] = useState<VerifyRecord | null>(null);
+  const [verifyLoading, setVerifyLoading] = useState(false);
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const getVerify = useCallback(async () => {
+    const t = target.trim();
+    if (!t || verifyLoading) return;
+    setVerifyLoading(true);
+    setVerify(null);
+    try {
+      const res = await fetch(`/api/verify?target=${encodeURIComponent(t)}`);
+      const json = await res.json();
+      if (res.ok) setVerify(json as VerifyRecord);
+    } finally {
+      setVerifyLoading(false);
+    }
+  }, [target, verifyLoading]);
 
   useEffect(() => {
     if (loading) {
@@ -153,7 +186,7 @@ export default function AdvancedScanner() {
   }, [loading]);
 
   const run = useCallback(
-    async (rawTarget?: string, rawProfile?: "standard" | "deep") => {
+    async (rawTarget?: string, rawProfile?: "standard" | "deep" | "active") => {
       const t = (rawTarget ?? target).trim();
       const p = rawProfile ?? profile;
       if (!t || loading) return;
@@ -183,7 +216,9 @@ export default function AdvancedScanner() {
     const params = new URLSearchParams(window.location.search);
     const t = params.get("target");
     if (!t) return;
-    const p = params.get("profile") === "standard" ? "standard" : "deep";
+    const raw = params.get("profile");
+    const p: "standard" | "deep" | "active" =
+      raw === "standard" ? "standard" : raw === "active" ? "active" : "deep";
     setTarget(t);
     setProfile(p);
     run(t, p);
@@ -209,7 +244,7 @@ export default function AdvancedScanner() {
           spellCheck={false}
         />
         <div className="av-profile" role="tablist" aria-label="Scan depth">
-          {(["standard", "deep"] as const).map((p) => (
+          {(["standard", "deep", "active"] as const).map((p) => (
             <button
               key={p}
               type="button"
@@ -218,14 +253,44 @@ export default function AdvancedScanner() {
               className={`av-profile-btn ${profile === p ? "on" : ""}`}
               onClick={() => setProfile(p)}
             >
-              {p === "standard" ? "Standard" : "Deep"}
+              {p === "standard" ? "Standard" : p === "deep" ? "Deep" : "Active"}
             </button>
           ))}
         </div>
         <button className="av-run" type="submit" disabled={loading}>
-          {loading ? "Scanning…" : "Run deep scan"}
+          {loading ? "Scanning…" : "Run scan"}
         </button>
       </form>
+
+      {profile === "active" && (
+        <div className="av-verify">
+          <p className="av-verify-lede">
+            <strong>Active scans are ownership-gated.</strong> They run intrusive checks (HTTP method
+            probing and more), so they only unlock for domains you prove you control. Publish this DNS
+            TXT record, then scan.
+          </p>
+          <button type="button" className="av-verify-btn" onClick={getVerify} disabled={verifyLoading}>
+            {verifyLoading ? "Fetching…" : "Get verification record"}
+          </button>
+          {verify && (
+            <div className="av-verify-rec">
+              <div className="av-verify-row">
+                <span>Host</span>
+                <code>{verify.domain}</code>
+              </div>
+              <div className="av-verify-row">
+                <span>Type</span>
+                <code>TXT</code>
+              </div>
+              <div className="av-verify-row">
+                <span>Value</span>
+                <code>{verify.record}</code>
+              </div>
+              <p className="av-verify-hint">{verify.instruction}</p>
+            </div>
+          )}
+        </div>
+      )}
 
       {loading && (
         <div className="av-loading">
@@ -234,7 +299,7 @@ export default function AdvancedScanner() {
         </div>
       )}
 
-      {error && <div className="av-error">{error}</div>}
+      {error && !data && <div className="av-error">{error}</div>}
 
       {data && !loading && <Report data={data} />}
     </div>
@@ -272,6 +337,11 @@ function Report({ data }: { data: AssessResponse }) {
               {level} risk
             </span>
             <span className="av-host">{scan.host}</span>
+            {scan.profile === "active" && (
+              <span className={`av-vchip ${scan.verified ? "ok" : "no"}`}>
+                {scan.verified ? "Ownership verified ✓" : "Unverified — active checks skipped"}
+              </span>
+            )}
           </div>
           <h3 className="av-headline">{analysis.headline}</h3>
           <ul className="av-summary">
@@ -291,6 +361,41 @@ function Report({ data }: { data: AssessResponse }) {
           </div>
         </div>
       </section>
+
+      {/* known vulnerabilities (CVE correlation) */}
+      {analysis.cve_matches.length > 0 && (
+        <section className="av-card">
+          <h4 className="av-card-title">Known vulnerabilities</h4>
+          <div className="av-cve-list">
+            {analysis.cve_matches.map((m, i) => (
+              <div className="av-cve-item" key={i}>
+                <span
+                  className="av-chip"
+                  style={{ color: sevColor(m.severity), borderColor: sevColor(m.severity) }}
+                >
+                  {m.severity}
+                </span>
+                <div className="av-cve-body">
+                  <div className="av-cve-head">
+                    <strong>
+                      {m.product} {m.version}
+                    </strong>
+                    <span className="av-cve-fix">→ upgrade to {m.fixed_in}+</span>
+                  </div>
+                  <p className="av-cve-detail">{m.summary}</p>
+                  <div className="av-cve-ids">
+                    {m.cves.map((c) => (
+                      <span className="av-cve-id" key={c}>
+                        {c}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* category risk */}
       {analysis.category_risk.length > 0 && (

@@ -46,6 +46,15 @@ async def health() -> dict[str, object]:
     }
 
 
+@app.get("/v1/verify")
+async def verify_endpoint(target: str) -> dict[str, object]:
+    """Return the DNS TXT record that unlocks Active-tier scans for a domain."""
+    try:
+        return await engine_client.verify(target)
+    except engine_client.EngineError as exc:
+        raise HTTPException(status_code=exc.status, detail=str(exc)) from exc
+
+
 @app.post("/v1/analyze", response_model=RiskAnalysis)
 async def analyze_endpoint(scan: ScanResult) -> RiskAnalysis:
     """Analyze a ScanResult produced by the engine."""

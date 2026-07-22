@@ -32,6 +32,18 @@ async def scan(target: str, profile: str, verified: bool) -> dict[str, Any]:
     return resp.json()
 
 
+async def verify(target: str) -> dict[str, Any]:
+    """Fetch the domain-ownership verification record from the engine."""
+    try:
+        async with httpx.AsyncClient(timeout=15, follow_redirects=True) as client:
+            resp = await client.get(f"{config.engine_url}/v1/verify", params={"target": target})
+    except httpx.HTTPError as exc:
+        raise EngineError(f"could not reach scanning engine: {exc}") from exc
+    if resp.status_code >= 400:
+        raise EngineError(_safe_error(resp), status=resp.status_code)
+    return resp.json()
+
+
 async def health() -> dict[str, Any]:
     async with httpx.AsyncClient(timeout=10, follow_redirects=True) as client:
         resp = await client.get(f"{config.engine_url}/health")

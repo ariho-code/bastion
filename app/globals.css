@@ -3119,3 +3119,130 @@ h3 {
     grid-template-columns: 1fr;
   }
 }
+
+/* Active-scan verification panel + verified chip + CVE list (advanced page) */
+.av-verify {
+  margin-top: 16px;
+  background: var(--bg-1);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 18px;
+}
+.av-verify-lede {
+  color: var(--text-2);
+  font-size: 14px;
+  margin-bottom: 14px;
+}
+.av-verify-lede strong {
+  color: var(--text);
+}
+.av-verify-btn {
+  background: var(--bg-3);
+  border: 1px solid var(--border-2);
+  color: var(--text);
+  border-radius: 10px;
+  padding: 9px 16px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+.av-verify-btn:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+.av-verify-btn:disabled {
+  opacity: 0.6;
+}
+.av-verify-rec {
+  margin-top: 14px;
+  border-top: 1px solid var(--border);
+  padding-top: 14px;
+}
+.av-verify-row {
+  display: flex;
+  gap: 12px;
+  align-items: baseline;
+  padding: 5px 0;
+}
+.av-verify-row > span {
+  flex: 0 0 52px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-3);
+}
+.av-verify-row code {
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--accent-2);
+  word-break: break-all;
+}
+.av-verify-hint {
+  color: var(--text-3);
+  font-size: 12.5px;
+  margin-top: 8px;
+}
+.av-vchip {
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: 999px;
+  padding: 3px 11px;
+  border: 1px solid;
+}
+.av-vchip.ok {
+  color: var(--pass);
+  border-color: rgba(34, 197, 94, 0.4);
+  background: rgba(34, 197, 94, 0.08);
+}
+.av-vchip.no {
+  color: var(--text-3);
+  border-color: var(--border-2);
+}
+
+.av-cve-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.av-cve-item {
+  display: flex;
+  gap: 14px;
+  padding: 14px;
+  background: var(--bg-2);
+  border: 1px solid rgba(239, 68, 68, 0.18);
+  border-radius: 12px;
+}
+.av-cve-body {
+  min-width: 0;
+}
+.av-cve-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 5px;
+}
+.av-cve-fix {
+  font-family: var(--mono);
+  font-size: 12.5px;
+  color: var(--accent-2);
+}
+.av-cve-detail {
+  color: var(--text-2);
+  font-size: 13.5px;
+  margin-bottom: 8px;
+}
+.av-cve-ids {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.av-cve-id {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--fail);
+  background: rgba(239, 68, 68, 0.08);
+  border: 1px solid rgba(239, 68, 68, 0.22);
+  border-radius: 6px;
+  padding: 1px 7px;
+}
