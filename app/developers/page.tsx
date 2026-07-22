@@ -110,11 +110,30 @@ const TIERS = [
 const ENDPOINTS = [
   { method: "POST", path: "/v1/scan", auth: true, desc: "Run a scan; returns a graded report." },
   { method: "GET", path: "/v1/scan?target=", auth: true, desc: "Same, via query params." },
+  { method: "GET", path: "/v1/verify?target=", auth: false, desc: "Get the DNS TXT record to unlock active scans." },
   { method: "GET", path: "/v1/modules", auth: false, desc: "List registered scanner modules." },
   { method: "GET", path: "/health", auth: false, desc: "Liveness + capability snapshot." },
   { method: "GET", path: "/metrics", auth: false, desc: "Prometheus metrics." },
   { method: "GET", path: "/openapi.yaml", auth: false, desc: "Machine-readable OpenAPI 3.1 spec." },
 ];
+
+const PROFILES = [
+  { name: "passive", desc: "Zero-touch. Only observes what a normal client already sees.", gated: false },
+  { name: "standard", desc: "Default. Light, safe, unauthenticated probing (TLS, headers, DNS, cookies, fingerprint, content).", gated: false },
+  { name: "deep", desc: "Thorough non-destructive analysis: cipher enumeration, attack-surface mapping, exposure & CORS checks.", gated: false },
+  { name: "active", desc: "Intrusive checks that touch the target directly (HTTP methods, content discovery). Requires ownership verification.", gated: true },
+];
+
+const VERIFY_SAMPLE = `# 1. Get the DNS TXT record for your domain
+curl "${ENGINE}/v1/verify?target=example.com"
+# → { "recordName": "bastionscan-verify", "record": "bastionscan-verify=<token>", ... }
+
+# 2. Publish it as a TXT record on example.com, then run an active scan.
+#    The engine confirms the token over DNS before running gated modules.
+curl -X POST ${ENGINE}/v1/scan \\
+  -H "Authorization: Bearer $BASTION_API_KEY" \\
+  -H "Content-Type: application/json" \\
+  -d '{"target":"example.com","profile":"active"}'`;
 
 const ERRORS = [
   { code: "400", when: "Invalid target (bad URL, embedded credentials, non-web port)." },
@@ -244,6 +263,51 @@ export default function DevelopersPage() {
         </ul>
       </section>
 
+      {/* Scan profiles */}
+      <section className="dev-section">
+        <h2>Scan profiles</h2>
+        <p>
+          Profiles are cumulative — each runs every module up to and including its level. Deeper
+          profiles issue more requests; <code>active</code> is ownership-gated because it touches the
+          target directly.
+        </p>
+        <div className="dev-table-wrap">
+          <table className="dev-table">
+            <thead>
+              <tr>
+                <th>Profile</th>
+                <th>Gated</th>
+                <th>What it does</th>
+              </tr>
+            </thead>
+            <tbody>
+              {PROFILES.map((p) => (
+                <tr key={p.name}>
+                  <td>
+                    <span className="dev-pill">{p.name}</span>
+                  </td>
+                  <td>{p.gated ? "Ownership" : "—"}</td>
+                  <td>{p.desc}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      {/* Active scans & ownership verification */}
+      <section className="dev-section">
+        <h2>Active scans &amp; ownership verification</h2>
+        <p>
+          Active-tier modules (HTTP-method probing, content discovery) are intrusive, so the engine
+          only runs them against domains you prove you control. Fetch a token from{" "}
+          <code>/v1/verify</code>, publish it as a DNS <code>TXT</code> record, then scan with{" "}
+          <code>profile=active</code>. The engine confirms the token over DNS itself — no client flag
+          is trusted — and simply skips the gated modules if verification fails.
+        </p>
+        <CodeTabs samples={[{ label: "Verify + active scan", code: VERIFY_SAMPLE }]} />
+      </section>
+
       {/* Response */}
       <section className="dev-section">
         <h2>Response</h2>
@@ -288,8 +352,8 @@ export default function DevelopersPage() {
             <p>Import into Postman, Insomnia, or generate a client.</p>
           </a>
           <a className="dev-card" href="https://bastionscan-brain.onrender.com/docs" target="_blank" rel="noreferrer">
-            <h3>Interactive docs</h3>
-            <p>Try the risk-analysis API live (Swagger UI).</p>
+            <h3>Risk analysis &amp; live CVEs</h3>
+            <p>Executive risk scoring, prioritized fixes, and CVE correlation enriched by the live OSV.dev feed (Swagger UI).</p>
           </a>
           <a className="dev-card" href="https://github.com/ariho-code/bastion" target="_blank" rel="noreferrer">
             <h3>Source on GitHub</h3>

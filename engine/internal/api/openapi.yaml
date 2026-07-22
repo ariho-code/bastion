@@ -36,7 +36,7 @@ paths:
                 properties:
                   status: { type: string, example: ok }
                   version: { type: string, example: 0.1.0 }
-                  modules: { type: integer, example: 9 }
+                  modules: { type: integer, example: 12 }
                   uptimeSec: { type: integer }
                   authRequired: { type: boolean }
   /metrics:
@@ -72,6 +72,38 @@ paths:
                         category: { type: string, example: transport }
                         description: { type: string }
                         minLevel: { type: integer }
+  /v1/verify:
+    get:
+      tags: [Scanning]
+      summary: Domain-ownership verification record
+      description: >
+        Returns the DNS TXT record an owner must publish to unlock Active-tier
+        scans for a domain. The token is a deterministic HMAC of the domain, so
+        this endpoint is public and stateless. Publish the record, then scan
+        with `profile=active`; the engine confirms the token over DNS itself
+        before running any ownership-gated module.
+      security: []
+      parameters:
+        - name: target
+          in: query
+          required: true
+          schema: { type: string }
+          example: example.com
+      responses:
+        "200":
+          description: The verification record to publish
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  domain: { type: string, example: example.com }
+                  recordName: { type: string, example: bastionscan-verify }
+                  recordType: { type: string, example: TXT }
+                  token: { type: string }
+                  record: { type: string, example: "bastionscan-verify=<token>" }
+                  instruction: { type: string }
+        "400": { $ref: "#/components/responses/Error" }
   /v1/scan:
     post:
       tags: [Scanning]
@@ -186,13 +218,29 @@ components:
         pass: { type: integer }
         warn: { type: integer }
         fail: { type: integer }
+    ModuleRun:
+      type: object
+      description: What each scanner module did during the scan (observability).
+      properties:
+        id: { type: string, example: cors }
+        category: { type: string, example: surface }
+        durationMs: { type: integer }
+        findings: { type: integer }
+        error: { type: string }
+        skipped: { type: boolean }
+        skipReason:
+          type: string
+          example: requires an ownership-verified target
     ScanResult:
       type: object
       properties:
         target: { type: string }
         host: { type: string }
         domain: { type: string }
-        profile: { type: string }
+        profile: { type: string, enum: [passive, standard, deep, active] }
+        verified:
+          type: boolean
+          description: Whether the target's ownership was confirmed (gates active modules).
         grade: { type: string, enum: [A, B, C, D, F] }
         score: { type: integer }
         categories:
@@ -201,8 +249,12 @@ components:
         findings:
           type: array
           items: { $ref: "#/components/schemas/Finding" }
+        modules:
+          type: array
+          items: { $ref: "#/components/schemas/ModuleRun" }
         passed: { type: integer }
         warnings: { type: integer }
         failed: { type: integer }
+        scannedAt: { type: string, format: date-time }
         durationMs: { type: integer }
         engineVersion: { type: string }

@@ -64,7 +64,8 @@ switch.
 cmd/server            HTTP entrypoint + graceful shutdown
 internal/scan         model, module registry, orchestrator, scoring, shared Env
 internal/modules/*    self-registering plugins (tls, headers, cookies, dns,
-                      fingerprint, ports, subdomains, exposure, intel)
+                      fingerprint, content, cors, ports, subdomains, exposure,
+                      intel, methods, discovery)
 internal/netutil      SSRF guard + TOCTOU-safe HTTP client + DoH helpers
 internal/api          thin HTTP layer (routing, CORS, rate limit)
 internal/config       env-driven configuration (nothing hardcoded)

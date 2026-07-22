@@ -8,7 +8,7 @@ Bastionscan is a **polyglot, three-tier system** — see [ARCHITECTURE.md](./ARC
 | ---- | ----- | ---- |
 | **Frontend** | Next.js + TypeScript (Vercel) | UI, SEO, and a fast passive scanner |
 | **Risk brain** | Python · FastAPI (Render) | Risk scoring + prioritized remediation — [`brain/`](./brain) |
-| **Scanning engine** | Go (Render) | Concurrent deep scanner, 9 self-registering modules — [`engine/`](./engine) |
+| **Scanning engine** | Go (Render) | Concurrent deep scanner, 12 self-registering modules — [`engine/`](./engine) |
 
 The **standard scan** is instant and self-contained. The **Advanced Deep Scan**
 (`/advanced`) drives the Go engine — deep TLS/cipher analysis, attack-surface

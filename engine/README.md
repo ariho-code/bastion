@@ -36,6 +36,7 @@ ownership-verified targets.
 | ------ | ------------- | ----------------------------------------- |
 | GET    | `/health`     | Liveness + registered-module count        |
 | GET    | `/v1/modules` | Self-describing capability list           |
+| GET    | `/v1/verify`  | DNS TXT record to unlock active scans (`?target=`) |
 | POST   | `/v1/scan`    | Run a scan (`{ target, profile, verified }`) |
 | GET    | `/v1/scan`    | Same, via `?target=&profile=` for testing |
 
