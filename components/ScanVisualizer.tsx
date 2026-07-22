@@ -10,6 +10,7 @@ const CATEGORY_ICONS: { icon: IconName; label: string }[] = [
   { icon: "cookie", label: "Cookies" },
   { icon: "file-text", label: "Content" },
   { icon: "eye", label: "Disclosure" },
+  { icon: "alert", label: "Scam" },
 ];
 
 interface ScanVisualizerProps {

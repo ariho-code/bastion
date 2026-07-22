@@ -11,6 +11,7 @@ const CAT_ICON: Record<string, IconName> = {
   cookies: "cookie",
   content: "file-text",
   disclosure: "eye",
+  scam: "alert",
 };
 
 function barColor(score: number): string {

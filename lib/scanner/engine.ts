@@ -37,6 +37,7 @@ import {
   checkMethods,
 } from "./checks";
 import { scoreByCategory, gradeFromScore, sortFindings } from "./score";
+import { assessScam } from "./scam";
 
 export class ScanError extends Error {
   status: number;
@@ -163,24 +164,39 @@ export async function runScan(rawInput: string): Promise<ScanResult> {
   const finalIsHttps = finalUrl.toLowerCase().startsWith("https://");
   const cookies = getSetCookies(headers);
 
-  // Read a capped slice of the HTML to detect active mixed content.
+  // Read a capped slice of the HTML to detect active mixed content and scam signals.
   let mixed: MixedContent | null = null;
+  let htmlBody = "";
+  let pageTitle = "";
   try {
     const ct = headers.get("content-type") || "";
-    if (finalIsHttps && /text\/html/i.test(ct)) {
-      const html = (await res.text()).slice(0, 600000);
-      const found = new Set<string>();
-      const collect = (re: RegExp) => {
-        let m: RegExpExecArray | null;
-        while ((m = re.exec(html)) && found.size < 25) found.add(m[1]);
-      };
-      collect(/\b(?:src|srcset)\s*=\s*["']?(http:\/\/[^"'\s>]+)/gi);
-      collect(/<link[^>]+href\s*=\s*["']?(http:\/\/[^"'\s>]+)/gi);
-      mixed = { count: found.size, samples: Array.from(found).slice(0, 5) };
+    if (/text\/html/i.test(ct) || ct === "") {
+      htmlBody = (await res.text()).slice(0, 600000);
+      const tm = htmlBody.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
+      if (tm) pageTitle = tm[1].replace(/\s+/g, " ").trim();
+      if (finalIsHttps) {
+        const found = new Set<string>();
+        const collect = (re: RegExp) => {
+          let m: RegExpExecArray | null;
+          while ((m = re.exec(htmlBody)) && found.size < 25) found.add(m[1]!);
+        };
+        collect(/\b(?:src|srcset)\s*=\s*["']?(http:\/\/[^"'\s>]+)/gi);
+        collect(/<link[^>]+href\s*=\s*["']?(http:\/\/[^"'\s>]+)/gi);
+        mixed = { count: found.size, samples: Array.from(found).slice(0, 5) };
+      }
     }
   } catch {
     mixed = null;
   }
+
+  const scam = assessScam({
+    host,
+    domain,
+    path: target.pathname + (target.search || ""),
+    html: htmlBody,
+    title: pageTitle,
+    scheme: finalIsHttps ? "https" : "http",
+  });
 
   const findings: Finding[] = [
     checkHttps(finalIsHttps),
@@ -211,6 +227,8 @@ export async function runScan(rawInput: string): Promise<ScanResult> {
 
   const cookieFinding = checkCookies(cookies);
   if (cookieFinding) findings.push(cookieFinding);
+
+  findings.push(...scam.findings);
 
   const { categories, overall } = scoreByCategory(findings);
   const grade = gradeFromScore(overall);

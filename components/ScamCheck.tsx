@@ -66,10 +66,11 @@ export default function ScamCheck() {
     setError("");
     setResult(null);
     try {
+      // Deep profile: full phishing + reputation + lexical + infra signals.
       const res = await fetch("/api/deep", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ target: value, profile: "standard" }),
+        body: JSON.stringify({ target: value, profile: "deep" }),
       });
       const data: DeepResponse = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -130,7 +131,7 @@ export default function ScamCheck() {
       {loading && (
         <div className="sc-loading" aria-live="polite">
           <span className="sc-spinner" aria-hidden="true" />
-          Checking the domain age, reputation, and page for scam patterns…
+          Running a deep multi-signal scan — domain age, blocklists, naming patterns, hosting, and page content…
         </div>
       )}
 

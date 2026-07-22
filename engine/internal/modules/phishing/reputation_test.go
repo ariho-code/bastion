@@ -13,22 +13,34 @@ func TestParseRDAPRegistration(t *testing.T) {
 			{"eventAction": "last changed", "eventDate": "2024-08-01T00:00:00Z"},
 			{"eventAction": "registration", "eventDate": "1995-08-14T04:00:00Z"},
 			{"eventAction": "expiration", "eventDate": "2025-08-13T04:00:00Z"}
+		],
+		"entities": [
+			{
+				"roles": ["registrar"],
+				"vcardArray": ["vcard", [
+					["version", {}, "text", "4.0"],
+					["fn", {}, "text", "Example Registrar, Inc."]
+				]]
+			}
 		]
 	}`)
-	got, ok := parseRDAPRegistration(body)
+	got, reg, ok := parseRDAPRegistration(body)
 	if !ok {
 		t.Fatal("expected a registration date")
 	}
 	if got.Year() != 1995 || got.Month() != time.August || got.Day() != 14 {
 		t.Errorf("parsed %v, want 1995-08-14", got)
 	}
+	if reg != "Example Registrar, Inc." {
+		t.Errorf("registrar = %q", reg)
+	}
 }
 
 func TestParseRDAPRegistrationMissing(t *testing.T) {
-	if _, ok := parseRDAPRegistration([]byte(`{"events":[{"eventAction":"expiration","eventDate":"2025-01-01T00:00:00Z"}]}`)); ok {
+	if _, _, ok := parseRDAPRegistration([]byte(`{"events":[{"eventAction":"expiration","eventDate":"2025-01-01T00:00:00Z"}]}`)); ok {
 		t.Error("must not find a registration date when none is present")
 	}
-	if _, ok := parseRDAPRegistration([]byte(`not json`)); ok {
+	if _, _, ok := parseRDAPRegistration([]byte(`not json`)); ok {
 		t.Error("must fail gracefully on malformed JSON")
 	}
 }
@@ -60,7 +72,9 @@ func TestAgeToSignal(t *testing.T) {
 		{-1, false, "", 0},
 		{2, true, "domain-new", 30},
 		{20, true, "domain-new", 22},
-		{75, true, "domain-young", 12},
+		{75, true, "domain-young", 14},
+		{99, true, "domain-young", 10},  // future-aihub-class: ~3 months still young
+		{200, true, "domain-young", 5},
 		{400, false, "", 0},
 	}
 	for _, c := range cases {
@@ -92,6 +106,18 @@ func TestBlocklistListed(t *testing.T) {
 		if got := blocklistListed(c.answers); got != c.want {
 			t.Errorf("%s: blocklistListed(%v) = %v, want %v", c.name, c.answers, got, c.want)
 		}
+	}
+}
+
+func TestParseURLHausHost(t *testing.T) {
+	if !parseURLHausHost([]byte(`{"query_status":"ok","url_count":3,"urls":[{},{}]}`)) {
+		t.Error("expected listed host")
+	}
+	if parseURLHausHost([]byte(`{"query_status":"no_results"}`)) {
+		t.Error("no_results must not list")
+	}
+	if parseURLHausHost([]byte(`{"query_status":"ok","url_count":0,"urls":[]}`)) {
+		t.Error("empty urls must not list")
 	}
 }
 

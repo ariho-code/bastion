@@ -6,7 +6,7 @@ package scan
 import "time"
 
 // EngineVersion is surfaced in scan results and the /health endpoint.
-const EngineVersion = "0.1.0"
+const EngineVersion = "0.2.0"
 
 // Status is the outcome of a single Finding.
 type Status string

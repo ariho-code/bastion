@@ -23,6 +23,7 @@ const CATEGORY_BLURB: Record<Category, string> = {
   cookies: "Secure, HttpOnly & SameSite flags",
   content: "Live mixed-content & sub-resource integrity",
   disclosure: "Server banners, methods & disclosure policy",
+  scam: "Brand impersonation, kit naming, wallet/credential harvest patterns",
 };
 
 const LOADING_STAGES = [
@@ -30,6 +31,7 @@ const LOADING_STAGES = [
   "Negotiating TLS handshake…",
   "Fetching response headers…",
   "Checking email & certificate records…",
+  "Scanning for scam & phishing patterns…",
   "Scoring findings…",
 ];
 

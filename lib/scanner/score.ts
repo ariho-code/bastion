@@ -16,6 +16,7 @@ const CATEGORY_ORDER: Category[] = [
   "cookies",
   "content",
   "disclosure",
+  "scam",
 ];
 
 export function scoreByCategory(findings: Finding[]): {

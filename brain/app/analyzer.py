@@ -210,9 +210,9 @@ def analyze(scan: ScanResult, extra_cves: list[CVEMatch] | None = None) -> RiskA
 _SCAM_LEVELS: dict[str, int] = {"SAFE": 0, "LOW RISK": 1, "SUSPICIOUS": 2, "DANGEROUS": 3}
 _SCAM_ADVICE: dict[int, str] = {
     0: "No scam indicators were found, but always double-check the address bar before entering sensitive details.",
-    1: "A minor red flag was found. Nothing conclusive — proceed carefully and verify the site is genuine.",
-    2: "Several scam red flags were found. Do not enter passwords, payment or wallet details unless you are certain this site is legitimate.",
-    3: "Strong signs of a phishing or crypto-draining scam. Do NOT log in, pay, or connect a wallet. Leave the site.",
+    1: "A minor red flag was found. Nothing conclusive — proceed carefully, verify the company independently, and never send crypto or share a seed phrase.",
+    2: "Several scam red flags were found (naming, age, content, or hosting). Do not enter passwords, payments, or wallet details unless you are certain this site is legitimate.",
+    3: "Strong signs of a phishing, investment, or crypto-draining scam. Do NOT log in, pay, invest, or connect a wallet. Leave the site and report it.",
 }
 _BRAND_RE = re.compile(r"impersonating ([A-Z][\w.&/ -]+?)(?:\.| but| —|,|$)")
 
@@ -222,6 +222,10 @@ def _scam_verdict(findings: list[Finding]) -> ScamVerdict | None:
 
     Returns None when the phishing module did not run (e.g. an older engine), so
     older scans keep working unchanged.
+
+    Multi-signal corroboration (domain age, blocklists, lexical naming, hosting,
+    content playbooks) is performed in the Go engine; the brain preserves the
+    engine's verdict and surfaces every open signal as a plain-English reason.
     """
     phish = [f for f in findings if f.module == "phishing" or f.id.startswith("phishing.")]
     if not phish:
@@ -248,12 +252,14 @@ def _scam_verdict(findings: list[Finding]) -> ScamVerdict | None:
     headline = verdict_f.detail if verdict_f is not None else f"Scam assessment: {label}."
 
     # Supporting reasons: every open (fail/warn) phishing signal except the
-    # verdict headline itself.
-    reasons = [
-        f.detail
-        for f in phish
-        if f.status in ("fail", "warn") and f.id != "phishing.verdict" and f.detail
-    ]
+    # verdict headline itself. Prefer evidence when present (more specific).
+    reasons: list[str] = []
+    for f in phish:
+        if f.status not in ("fail", "warn") or f.id == "phishing.verdict":
+            continue
+        text = (f.evidence or "").strip() or (f.detail or "").strip()
+        if text and text not in reasons:
+            reasons.append(text)
 
     brand: str | None = None
     imp = next((f for f in phish if f.id == "phishing.impersonation"), None)
@@ -262,13 +268,26 @@ def _scam_verdict(findings: list[Finding]) -> ScamVerdict | None:
         if m:
             brand = m.group(1).strip()
 
+    # Cross-check: critical blocklist / seed harvest findings must never render
+    # as anything softer than DANGEROUS even if the verdict label drifts.
+    hard = {
+        f.id
+        for f in phish
+        if f.status == "fail" and f.severity == "critical"
+        and f.id in ("phishing.reputation", "phishing.harvesting")
+    }
+    if hard and level < 3:
+        label, level = "DANGEROUS", 3
+        if verdict_f is not None and verdict_f.detail:
+            headline = verdict_f.detail
+
     return ScamVerdict(
         verdict=label,
         level=level,
         is_scam=level >= 2,
         brand=brand,
         headline=headline,
-        reasons=reasons[:6],
+        reasons=reasons[:8],
         advice=_SCAM_ADVICE.get(level, _SCAM_ADVICE[0]),
     )
 

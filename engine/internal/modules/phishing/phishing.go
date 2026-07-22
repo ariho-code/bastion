@@ -1,18 +1,22 @@
 // Package phishing detects scams and phishing — the question ordinary people
 // actually ask: "is this link safe?" It looks for brand impersonation
 // (typosquatting, homoglyphs, combosquatting, subdomain deception), wallet /
-// seed-phrase harvesting, deceptive URL structure, and the keyword fingerprints
-// of crypto, lottery and mobile-money scams. It runs at every scan depth,
-// including the zero-touch passive tier, because a scam verdict should be
-// instant and available to anyone.
+// seed-phrase harvesting, deceptive URL structure, domain age & multi-source
+// reputation, lexical scam-domain patterns, and the keyword fingerprints of
+// crypto, lottery, AI-trading and mobile-money scams. It runs at every scan
+// depth, including the zero-touch passive tier, because a scam verdict should
+// be instant and available to anyone.
 package phishing
 
 import (
 	"context"
+	"fmt"
+	"net"
 	"regexp"
 	"strconv"
 	"strings"
 
+	"github.com/ariho-code/bastionscan/engine/internal/netutil"
 	"github.com/ariho-code/bastionscan/engine/internal/scan"
 )
 
@@ -25,7 +29,7 @@ func (m *Module) ID() string              { return "phishing" }
 func (m *Module) Category() scan.Category { return scan.CategoryScam }
 func (m *Module) MinLevel() int           { return scan.ProfilePassive.Level }
 func (m *Module) Description() string {
-	return "Scam & phishing detection: brand impersonation, wallet/seed-phrase harvesting, deceptive URLs"
+	return "Scam & phishing detection: brand impersonation, wallet harvesting, domain reputation, lexical AI/crypto scam patterns"
 }
 func (m *Module) Supports(t *scan.Target) bool { return t.Host != "" }
 
@@ -37,30 +41,109 @@ func (m *Module) Run(ctx context.Context, t *scan.Target, env *scan.Env) ([]scan
 	page := env.Page(ctx, t)
 
 	body, title := "", ""
-	if page != nil && page.Err == nil {
+	pageFailed := false
+	pageStatus := 0
+	if page == nil {
+		pageFailed = true
+	} else if page.Err != nil {
+		pageFailed = true
+	} else {
+		pageStatus = page.Status
+		// Connection succeeded but nothing usable — still a soft reachability issue
+		// for brand-new kits that park on dead backends.
+		if page.Status == 0 {
+			pageFailed = true
+		}
 		body = strings.ToLower(page.Body)
 		if mm := titleRe.FindStringSubmatch(page.Body); len(mm) == 2 {
 			title = strings.ToLower(strings.TrimSpace(mm[1]))
 		}
 	}
 
+	nr := gatherReputation(ctx, env, t.Domain)
+
+	// Pull hosting hint from a lightweight reverse-DNS / ASN probe only when the
+	// domain looks young or lexical-scam — keeps extra DNS load off established sites.
+	hostingHint := ""
+	sld := secondLevel(t.Domain)
+	if nr.ageDays >= 0 && nr.ageDays <= 365 || len(detectLexicalDomain(t.Domain, sld)) > 0 {
+		hostingHint = hostingFingerprint(ctx, env, t.Host)
+	}
+
 	in := input{
-		host:        t.Host,
-		domain:      t.Domain,
+		host:        strings.ToLower(t.Host),
+		domain:      strings.ToLower(t.Domain),
 		scheme:      strings.ToLower(t.URL.Scheme),
 		hasUserinfo: t.URL.User != nil,
 		path:        strings.ToLower(t.URL.EscapedPath() + "?" + t.URL.RawQuery),
 		title:       title,
 		body:        body,
+		pageFailed:  pageFailed,
+		pageStatus:  pageStatus,
+		hostingHint: hostingHint,
+		ageDays:     nr.ageDays,
 	}
 
-	nr := gatherReputation(ctx, env, t.Domain)
 	a := assess(in, nr.signals...)
 	return findingsFor(a, nr), nil
 }
 
-// findingsFor converts an assessment into the module's graded findings. Three
-// scored findings drive the category grade; a fourth verdict finding carries the
+// hostingFingerprint returns a lowercase string of PTR + Cymru ASN org for the
+// target's first public A record. Failures return "" (no signal).
+func hostingFingerprint(ctx context.Context, env *scan.Env, host string) string {
+	ips, err := env.Resolver.LookupIP(ctx, "ip4", host)
+	if err != nil || len(ips) == 0 {
+		return ""
+	}
+	ip := ips[0]
+	rev := reverseIPv4(ip)
+	if rev == "" {
+		return ""
+	}
+	var parts []string
+	if ptrs, err := env.Resolver.LookupAddr(ctx, ip.String()); err == nil {
+		for _, p := range ptrs {
+			parts = append(parts, strings.ToLower(strings.TrimSuffix(p, ".")))
+		}
+	}
+	// Team Cymru origin TXT over DoH (keyless).
+	answers := netutilLookupTXT(ctx, env, rev+".origin.asn.cymru.com")
+	parts = append(parts, answers...)
+	if len(answers) > 0 {
+		// "ASN | prefix | CC | registry | date"
+		fields := strings.Split(answers[0], "|")
+		if len(fields) > 0 {
+			asn := strings.TrimSpace(fields[0])
+			if asn != "" {
+				parts = append(parts, "as"+asn)
+				asAnswers := netutilLookupTXT(ctx, env, "AS"+asn+".asn.cymru.com")
+				parts = append(parts, asAnswers...)
+			}
+		}
+	}
+	return strings.ToLower(strings.Join(parts, " "))
+}
+
+// netutilLookupTXT resolves TXT records over DoH (keyless, SSRF-safe client).
+func netutilLookupTXT(ctx context.Context, env *scan.Env, name string) []string {
+	raw := netutil.LookupDoH(ctx, env.HTTP, env.UserAgent, name, "TXT")
+	out := make([]string, 0, len(raw))
+	for _, r := range raw {
+		out = append(out, strings.Trim(r, "\""))
+	}
+	return out
+}
+
+func reverseIPv4(ip net.IP) string {
+	v4 := ip.To4()
+	if v4 == nil {
+		return ""
+	}
+	return fmt.Sprintf("%d.%d.%d.%d", v4[3], v4[2], v4[1], v4[0])
+}
+
+// findingsFor converts an assessment into the module's graded findings. Scored
+// findings drive the category grade; the verdict finding carries the
 // plain-English bottom line that the frontend and brain surface to users.
 func findingsFor(a assessment, nr netResult) []scan.Finding {
 	var out []scan.Finding
@@ -136,8 +219,7 @@ func findingsFor(a assessment, nr netResult) []scan.Finding {
 	}
 	out = append(out, urlF)
 
-	// 4. Domain reputation: age (RDAP) + blocklists. Scored only when we have
-	// real data — an unknown age must never penalize a legitimate site.
+	// 4. Domain reputation: age (RDAP) + multi-blocklist + URLhaus.
 	rep := scan.Finding{
 		ID: "phishing.reputation", Module: "phishing", Category: scan.CategoryScam,
 		Title: "Domain reputation & age", Reference: "https://www.spamhaus.org/",
@@ -146,8 +228,11 @@ func findingsFor(a assessment, nr netResult) []scan.Finding {
 	case len(nr.blocklists) > 0:
 		rep.MaxPoints, rep.Points = 25, 0
 		rep.Status, rep.Severity = scan.StatusFail, scan.SeverityCritical
-		rep.Detail = "This domain is on reputable abuse/phishing blocklists — a strong indicator it is already known to be malicious."
+		rep.Detail = "This domain is on reputable abuse/phishing/malware blocklists — a strong indicator it is already known to be malicious."
 		rep.Evidence = "Listed on: " + strings.Join(nr.blocklists, ", ")
+		if nr.regDate != "" {
+			rep.Evidence += " · Registered " + nr.regDate
+		}
 		rep.Fix = "Do not interact with this site. If it is your own domain, investigate for compromise and request delisting."
 	case nr.ageDays >= 0 && nr.ageDays <= 30:
 		rep.MaxPoints, rep.Points = 25, 0
@@ -156,15 +241,23 @@ func findingsFor(a assessment, nr netResult) []scan.Finding {
 		rep.Evidence = "Registered " + nr.regDate
 		rep.Fix = "Be extremely cautious with brand-new domains asking for logins, payments or wallet access."
 	case nr.ageDays >= 0 && nr.ageDays <= 90:
-		rep.MaxPoints, rep.Points = 25, 12
-		rep.Status, rep.Severity = scan.StatusWarn, scan.SeverityLow
-		rep.Detail = "This domain is fairly new (" + humanAge(nr.ageDays) + "). Newness alone isn't proof of a scam, but stay alert."
+		rep.MaxPoints, rep.Points = 25, 8
+		rep.Status, rep.Severity = scan.StatusWarn, scan.SeverityMedium
+		rep.Detail = "This domain is fairly new (" + humanAge(nr.ageDays) + "). Newness alone isn't proof of a scam, but stay alert — especially for investment or crypto offers."
 		rep.Evidence = "Registered " + nr.regDate
-	case nr.ageDays > 90:
+	case nr.ageDays >= 0 && nr.ageDays <= 180:
+		rep.MaxPoints, rep.Points = 25, 14
+		rep.Status, rep.Severity = scan.StatusWarn, scan.SeverityLow
+		rep.Detail = "This domain is under six months old (" + humanAge(nr.ageDays) + "). Many AI-trading and investment scams operate on domains this age."
+		rep.Evidence = "Registered " + nr.regDate
+	case nr.ageDays > 180:
 		rep.MaxPoints, rep.Points = 25, 25
 		rep.Status, rep.Severity = scan.StatusPass, scan.SeverityInfo
 		rep.Detail = "The domain is well-established (" + humanAge(nr.ageDays) + ") and not on any checked blocklist."
 		rep.Evidence = "Registered " + nr.regDate
+		if nr.registrar != "" {
+			rep.Evidence += " · Registrar: " + nr.registrar
+		}
 	default:
 		rep.MaxPoints, rep.Points = 0, 0
 		rep.Status, rep.Severity = scan.StatusInfo, scan.SeverityInfo
@@ -172,7 +265,40 @@ func findingsFor(a assessment, nr netResult) []scan.Finding {
 	}
 	out = append(out, rep)
 
-	// 5. Scam-genre context (advisory, not scored) — only when something fired.
+	// 5. Lexical / kit-pattern signals (scored when present).
+	if ev := a.lexicalEvidence(); ev != "" {
+		sev := scan.SeverityMedium
+		st := scan.StatusWarn
+		if a.verdict >= verdictSuspicious {
+			sev = scan.SeverityHigh
+			st = scan.StatusFail
+		}
+		out = append(out, scan.Finding{
+			ID: "phishing.lexical", Module: "phishing", Category: scan.CategoryScam,
+			Title: "Suspicious domain naming", Status: st, Severity: sev,
+			MaxPoints: 15, Points: 0,
+			Detail:   "The domain name itself matches patterns used by disposable investment, AI-trading, and crypto-scam sites.",
+			Evidence: ev,
+			Fix:      "Do not invest, deposit, or connect a wallet. Verify any company through independent sources before trusting a new domain.",
+		})
+	}
+
+	// 6. Reachability / hosting risk (advisory → warn when combined with youth).
+	if ev := a.infraEvidence(); ev != "" {
+		sev := scan.SeverityLow
+		st := scan.StatusWarn
+		if a.verdict >= verdictSuspicious {
+			sev = scan.SeverityMedium
+		}
+		out = append(out, scan.Finding{
+			ID: "phishing.infra", Module: "phishing", Category: scan.CategoryScam,
+			Title: "Infrastructure risk signals", Status: st, Severity: sev,
+			Detail:   "Hosting or reachability characteristics commonly seen on disposable scam infrastructure.",
+			Evidence: ev,
+		})
+	}
+
+	// 7. Scam-genre context (advisory, not scored) — only when something fired.
 	if ev := a.scamGenreEvidence(); ev != "" {
 		out = append(out, scan.Finding{
 			ID: "phishing.genre", Module: "phishing", Category: scan.CategoryScam,
@@ -182,7 +308,7 @@ func findingsFor(a assessment, nr netResult) []scan.Finding {
 		})
 	}
 
-	// 6. Consumer verdict — the plain-English headline (not scored).
+	// 8. Consumer verdict — the plain-English headline (not scored).
 	out = append(out, a.verdictFinding())
 	return out
 }
@@ -254,6 +380,27 @@ func (a assessment) scamGenreEvidence() string {
 	var parts []string
 	for _, s := range a.signals {
 		if strings.HasPrefix(s.code, "scam:") || s.code == "wallet-drainer" || s.code == "brand-content" {
+			parts = append(parts, s.detail)
+		}
+	}
+	return strings.Join(parts, " ")
+}
+
+func (a assessment) lexicalEvidence() string {
+	var parts []string
+	for _, s := range a.signals {
+		if strings.HasPrefix(s.code, "lexical") {
+			parts = append(parts, s.detail)
+		}
+	}
+	return strings.Join(parts, " ")
+}
+
+func (a assessment) infraEvidence() string {
+	var parts []string
+	for _, s := range a.signals {
+		switch s.code {
+		case "unreachable", "hosting-risk":
 			parts = append(parts, s.detail)
 		}
 	}

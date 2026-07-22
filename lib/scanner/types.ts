@@ -1,6 +1,13 @@
 export type Status = "pass" | "warn" | "fail" | "info";
 export type Severity = "critical" | "high" | "medium" | "low" | "info";
-export type Category = "transport" | "headers" | "dns" | "cookies" | "content" | "disclosure";
+export type Category =
+  | "transport"
+  | "headers"
+  | "dns"
+  | "cookies"
+  | "content"
+  | "disclosure"
+  | "scam";
 
 export interface Finding {
   id: string;
@@ -95,4 +102,5 @@ export const CATEGORY_LABELS: Record<Category, string> = {
   cookies: "Cookies",
   content: "Content Integrity",
   disclosure: "Info Disclosure",
+  scam: "Scam & Phishing",
 };
