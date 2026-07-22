@@ -42,6 +42,7 @@ const (
 	CategoryDisclosure Category = "disclosure"
 	CategorySurface    Category = "surface"
 	CategoryIntel      Category = "intel"
+	CategoryScam       Category = "scam"
 )
 
 // CategoryLabels are human-readable names for report rendering. A category
@@ -56,6 +57,7 @@ var CategoryLabels = map[Category]string{
 	CategoryDisclosure: "Info Disclosure",
 	CategorySurface:    "Attack Surface",
 	CategoryIntel:      "Threat Intelligence",
+	CategoryScam:       "Scam & Phishing",
 }
 
 // Finding is a single graded observation produced by a module.
