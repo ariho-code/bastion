@@ -136,6 +136,96 @@ h3 {
   background: rgba(37, 99, 235, 0.18);
 }
 
+/* ---------------- Mobile nav (hamburger + drawer) ---------------- */
+.nav-toggle {
+  display: none; /* shown only at mobile widths */
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 40px;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  cursor: pointer;
+  color: var(--text);
+  -webkit-tap-highlight-color: transparent;
+}
+.nav-toggle:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+/* Three-line hamburger that morphs into an X when open */
+.nav-burger,
+.nav-burger::before,
+.nav-burger::after {
+  display: block;
+  width: 22px;
+  height: 2px;
+  background: var(--text);
+  border-radius: 2px;
+  transition: transform 0.2s ease, opacity 0.2s ease, background 0.2s ease;
+}
+.nav-burger {
+  position: relative;
+}
+.nav-burger::before {
+  content: "";
+  position: absolute;
+  top: -7px;
+  left: 0;
+}
+.nav-burger::after {
+  content: "";
+  position: absolute;
+  top: 7px;
+  left: 0;
+}
+.nav-burger.open {
+  background: transparent;
+}
+.nav-burger.open::before {
+  transform: translateY(7px) rotate(45deg);
+}
+.nav-burger.open::after {
+  transform: translateY(-7px) rotate(-45deg);
+}
+.nav-mobile {
+  display: none;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 22px 18px;
+  border-bottom: 1px solid var(--border);
+  background: rgba(10, 14, 20, 0.97);
+  backdrop-filter: saturate(160%) blur(12px);
+}
+.nav-mobile.open {
+  display: flex;
+}
+.nav-mobile a {
+  color: var(--text-2);
+  font-size: 16px;
+  padding: 13px 8px;
+  border-radius: 9px;
+  transition: color 0.15s, background 0.15s;
+}
+.nav-mobile a:hover {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.04);
+}
+.nav-mobile-row {
+  padding: 10px 8px 6px;
+}
+.nav-mobile-cta {
+  margin-top: 10px;
+  text-align: center;
+  font-size: 15px !important;
+}
+/* Never show the drawer on desktop, even if left open across a resize */
+@media (min-width: 861px) {
+  .nav-mobile {
+    display: none !important;
+  }
+}
+
 /* ---------------- Hero ---------------- */
 .hero {
   position: relative;
@@ -1534,10 +1624,10 @@ h3 {
     grid-template-columns: 1fr;
   }
   .nav-links {
-    gap: 16px;
+    display: none; /* replaced by the hamburger drawer */
   }
-  .nav-links a:not(.nav-cta) {
-    display: none;
+  .nav-toggle {
+    display: inline-flex;
   }
 }
 @media (max-width: 680px) {
