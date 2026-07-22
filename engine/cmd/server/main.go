@@ -21,6 +21,7 @@ import (
 
 	// Scanner modules — imported for their init()-time registration.
 	_ "github.com/ariho-code/bastionscan/engine/internal/modules/fingerprint"
+	_ "github.com/ariho-code/bastionscan/engine/internal/modules/ports"
 	_ "github.com/ariho-code/bastionscan/engine/internal/modules/tls"
 )
 

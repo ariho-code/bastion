@@ -76,6 +76,38 @@ func (g *Guard) Check(ctx context.Context, host string) error {
 	return nil
 }
 
+// IsPublicIP reports whether an IP is publicly routable (safe to scan).
+func IsPublicIP(ip net.IP) bool { return isPublicIP(ip) }
+
+// ResolvePublicIPs resolves a host and returns only its publicly-routable
+// addresses. It errors if the host resolves to nothing public — giving modules
+// a single, SSRF-safe way to turn a hostname into dialable IPs.
+func ResolvePublicIPs(ctx context.Context, res *net.Resolver, host string) ([]net.IP, error) {
+	if res == nil {
+		res = net.DefaultResolver
+	}
+	if ip := net.ParseIP(host); ip != nil {
+		if isPublicIP(ip) {
+			return []net.IP{ip}, nil
+		}
+		return nil, fmt.Errorf("address %s is not publicly routable", ip)
+	}
+	ips, err := res.LookupIP(ctx, "ip", host)
+	if err != nil {
+		return nil, err
+	}
+	var out []net.IP
+	for _, ip := range ips {
+		if isPublicIP(ip) {
+			out = append(out, ip)
+		}
+	}
+	if len(out) == 0 {
+		return nil, fmt.Errorf("host %q has no publicly-routable addresses", host)
+	}
+	return out, nil
+}
+
 // isPublicIP reports whether an IP is safe to connect to from a scanner.
 func isPublicIP(ip net.IP) bool {
 	if ip.IsLoopback() || ip.IsPrivate() || ip.IsUnspecified() ||
