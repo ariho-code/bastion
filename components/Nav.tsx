@@ -18,7 +18,7 @@ export default function Nav() {
           <a href="/#pricing">
             <T k="nav.pricing" />
           </a>
-          <Link href="/docs">
+          <Link href="/developers">
             <T k="nav.api" />
           </Link>
           <Link href="/advanced">Advanced</Link>

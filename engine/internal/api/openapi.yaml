@@ -1,0 +1,208 @@
+openapi: 3.1.0
+info:
+  title: Bastionscan Engine API
+  version: 0.1.0
+  description: >
+    Concurrent, plugin-based security-scanning engine. Grades a target A–F across
+    transport (TLS), headers, DNS/email, cookies, attack surface, exposure, and
+    threat intelligence. Non-destructive by default; the most intrusive modules
+    require an ownership-verified target.
+  license:
+    name: Proprietary
+servers:
+  - url: https://bastionscan-engine.onrender.com
+    description: Production
+  - url: http://localhost:8080
+    description: Local development
+security:
+  - bearerAuth: []
+  - apiKeyHeader: []
+tags:
+  - name: Scanning
+  - name: Meta
+paths:
+  /health:
+    get:
+      tags: [Meta]
+      summary: Liveness and capability snapshot
+      security: []
+      responses:
+        "200":
+          description: Engine is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, example: ok }
+                  version: { type: string, example: 0.1.0 }
+                  modules: { type: integer, example: 9 }
+                  uptimeSec: { type: integer }
+                  authRequired: { type: boolean }
+  /metrics:
+    get:
+      tags: [Meta]
+      summary: Prometheus metrics
+      security: []
+      responses:
+        "200":
+          description: Metrics in Prometheus text-exposition format
+          content:
+            text/plain: {}
+  /v1/modules:
+    get:
+      tags: [Meta]
+      summary: List registered scanner modules
+      security: []
+      responses:
+        "200":
+          description: Self-describing capability list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  count: { type: integer }
+                  modules:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: string, example: tls }
+                        category: { type: string, example: transport }
+                        description: { type: string }
+                        minLevel: { type: integer }
+  /v1/scan:
+    post:
+      tags: [Scanning]
+      summary: Run a security scan
+      description: >
+        Scans a target and returns a graded report. Rate limited per tier;
+        responses carry `X-RateLimit-*` headers. The same host is throttled by a
+        short per-target cooldown.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ScanRequest"
+      responses:
+        "200":
+          description: Graded scan result
+          headers:
+            X-RateLimit-Limit: { schema: { type: integer } }
+            X-RateLimit-Remaining: { schema: { type: integer } }
+            X-Request-ID: { schema: { type: string } }
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ScanResult"
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "429": { $ref: "#/components/responses/Error" }
+    get:
+      tags: [Scanning]
+      summary: Run a scan (convenience)
+      parameters:
+        - name: target
+          in: query
+          required: true
+          schema: { type: string }
+          example: example.com
+        - name: profile
+          in: query
+          schema:
+            type: string
+            enum: [passive, standard, deep, active]
+            default: standard
+      responses:
+        "200":
+          description: Graded scan result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ScanResult"
+        "400": { $ref: "#/components/responses/Error" }
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: "Pass your API key as: Authorization: Bearer <key>"
+    apiKeyHeader:
+      type: apiKey
+      in: header
+      name: X-API-Key
+  responses:
+    Error:
+      description: Error
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error: { type: string }
+  schemas:
+    ScanRequest:
+      type: object
+      required: [target]
+      properties:
+        target:
+          type: string
+          description: URL or hostname to scan
+          example: example.com
+        profile:
+          type: string
+          enum: [passive, standard, deep, active]
+          default: standard
+        verified:
+          type: boolean
+          default: false
+          description: Set only for ownership-verified targets (unlocks active modules)
+    Finding:
+      type: object
+      properties:
+        id: { type: string }
+        module: { type: string }
+        category: { type: string }
+        title: { type: string }
+        status: { type: string, enum: [pass, warn, fail, info] }
+        severity: { type: string, enum: [critical, high, medium, low, info] }
+        points: { type: integer }
+        maxPoints: { type: integer }
+        detail: { type: string }
+        fix: { type: string }
+        reference: { type: string }
+        evidence: { type: string }
+    CategoryScore:
+      type: object
+      properties:
+        category: { type: string }
+        label: { type: string }
+        score: { type: integer }
+        earned: { type: integer }
+        max: { type: integer }
+        pass: { type: integer }
+        warn: { type: integer }
+        fail: { type: integer }
+    ScanResult:
+      type: object
+      properties:
+        target: { type: string }
+        host: { type: string }
+        domain: { type: string }
+        profile: { type: string }
+        grade: { type: string, enum: [A, B, C, D, F] }
+        score: { type: integer }
+        categories:
+          type: array
+          items: { $ref: "#/components/schemas/CategoryScore" }
+        findings:
+          type: array
+          items: { $ref: "#/components/schemas/Finding" }
+        passed: { type: integer }
+        warnings: { type: integer }
+        failed: { type: integer }
+        durationMs: { type: integer }
+        engineVersion: { type: string }
