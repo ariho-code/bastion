@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"net"
 	"net/http"
 	"strings"
 	"time"
@@ -65,7 +66,12 @@ func (s *Server) handleScan(w http.ResponseWriter, r *http.Request) {
 	}
 
 	profile := scan.ParseProfile(req.Profile)
-	result := s.engine.Run(r.Context(), target, profile)
+	env := &scan.Env{
+		HTTP:      s.guard.HTTPClient(15 * time.Second),
+		Resolver:  net.DefaultResolver,
+		UserAgent: "BastionscanEngine/" + scan.EngineVersion + " (+https://bastionscan.com)",
+	}
+	result := s.engine.Run(r.Context(), target, profile, env)
 	writeJSON(w, http.StatusOK, result)
 }
 

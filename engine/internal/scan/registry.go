@@ -20,9 +20,10 @@ type Module interface {
 	MinLevel() int
 	// Supports reports whether the module is applicable to the given target.
 	Supports(t *Target) bool
-	// Run executes the checks and returns findings. Returning an error is
-	// non-fatal — the engine records it and continues with other modules.
-	Run(ctx context.Context, t *Target) ([]Finding, error)
+	// Run executes the checks and returns findings. The Env provides shared,
+	// SSRF-safe network dependencies. Returning an error is non-fatal — the
+	// engine records it and continues with other modules.
+	Run(ctx context.Context, t *Target, env *Env) ([]Finding, error)
 }
 
 var (

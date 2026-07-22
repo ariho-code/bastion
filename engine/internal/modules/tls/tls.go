@@ -53,7 +53,7 @@ var versionsToTest = []struct {
 	{"TLS 1.0", tls.VersionTLS10},
 }
 
-func (m *Module) Run(ctx context.Context, t *scan.Target) ([]scan.Finding, error) {
+func (m *Module) Run(ctx context.Context, t *scan.Target, _ *scan.Env) ([]scan.Finding, error) {
 	addr := net.JoinHostPort(t.Host, t.PortOr("443"))
 
 	// Baseline handshake: negotiate the best the server offers so we can read

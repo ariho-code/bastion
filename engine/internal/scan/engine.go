@@ -43,10 +43,13 @@ func NewEngine(opts Options) *Engine {
 // Run executes an entire scan: it selects applicable modules for the profile,
 // fans them out concurrently (bounded), aggregates their findings, and scores
 // the result. Individual module failures never fail the whole scan.
-func (e *Engine) Run(ctx context.Context, t *Target, profile Profile) *ScanResult {
+func (e *Engine) Run(ctx context.Context, t *Target, profile Profile, env *Env) *ScanResult {
 	started := time.Now()
 	ctx, cancel := context.WithTimeout(ctx, e.opts.ScanTimeout)
 	defer cancel()
+	if env == nil {
+		env = DefaultEnv()
+	}
 
 	mods := Modules()
 	sem := make(chan struct{}, e.opts.MaxConcurrency)
@@ -90,7 +93,7 @@ func (e *Engine) Run(ctx context.Context, t *Target, profile Profile) *ScanResul
 			case <-ctx.Done():
 				return
 			}
-			run := e.runModule(ctx, m, t)
+			run := e.runModule(ctx, m, t, env)
 			mu.Lock()
 			findings = append(findings, run.findings...)
 			runs = append(runs, run.summary)
@@ -147,7 +150,7 @@ type moduleOutcome struct {
 
 // runModule executes one module with its own timeout and panic isolation, so a
 // buggy or slow plugin can never take down a scan.
-func (e *Engine) runModule(ctx context.Context, m Module, t *Target) (out moduleOutcome) {
+func (e *Engine) runModule(ctx context.Context, m Module, t *Target, env *Env) (out moduleOutcome) {
 	mctx, cancel := context.WithTimeout(ctx, e.opts.ModuleTimeout)
 	defer cancel()
 	start := time.Now()
@@ -162,7 +165,7 @@ func (e *Engine) runModule(ctx context.Context, m Module, t *Target) (out module
 		out.summary.Findings = len(out.findings)
 	}()
 
-	found, err := m.Run(mctx, t)
+	found, err := m.Run(mctx, t, env)
 	if err != nil {
 		out.summary.Error = err.Error()
 	}
