@@ -79,3 +79,65 @@ def test_category_risk_sorted_desc() -> None:
     risks = [c.risk for c in result.category_risk]
     assert risks == sorted(risks, reverse=True)
     assert result.category_risk[0].category == "surface"
+
+
+# --- scam / phishing verdict -------------------------------------------------
+
+def _phishing_findings(verdict: str, severity: str, *, brand: bool = False, seed: bool = False) -> list[Finding]:
+    out = [
+        Finding(
+            id="phishing.verdict", module="phishing", category="scam",
+            title=f"Scam verdict: {verdict}", status="fail" if severity != "info" else "pass",
+            severity=severity,
+            detail=f"{verdict} — this site shows signs of a scam." if severity != "info" else "SAFE — no scam indicators.",
+        ),
+    ]
+    if brand:
+        out.append(Finding(
+            id="phishing.impersonation", module="phishing", category="scam",
+            title="Brand impersonation", status="fail", severity="critical", maxPoints=45,
+            detail="This domain is impersonating PayPal. Legitimate PayPal services never use look-alike domains.",
+            fix="Do not enter credentials.",
+        ))
+    if seed:
+        out.append(Finding(
+            id="phishing.harvesting", module="phishing", category="scam",
+            title="Credential & wallet harvesting", status="fail", severity="critical", maxPoints=35,
+            detail="This page asks for a wallet recovery/seed phrase. No legitimate wallet ever asks for this.",
+        ))
+    return out
+
+
+def test_scam_verdict_absent_when_module_did_not_run() -> None:
+    scan = _scan([Finding(id="a", category="headers", title="CSP", status="pass", severity="info")])
+    assert analyze(scan).scam is None
+
+
+def test_scam_verdict_safe() -> None:
+    scan = _scan(_phishing_findings("SAFE", "info"), grade="A", score=100)
+    scam = analyze(scan).scam
+    assert scam is not None
+    assert scam.verdict == "SAFE"
+    assert scam.level == 0
+    assert scam.is_scam is False
+
+
+def test_scam_verdict_dangerous_leads_narrative() -> None:
+    scan = _scan(_phishing_findings("DANGEROUS", "critical", brand=True, seed=True))
+    result = analyze(scan)
+    scam = result.scam
+    assert scam is not None
+    assert scam.verdict == "DANGEROUS"
+    assert scam.level == 3
+    assert scam.is_scam is True
+    assert scam.brand == "PayPal"
+    assert any("seed phrase" in r for r in scam.reasons)
+    # The scam verdict must lead the executive narrative.
+    assert result.headline == scam.headline
+    assert scam.advice in result.summary
+
+
+def test_scam_verdict_suspicious_from_label() -> None:
+    scan = _scan(_phishing_findings("SUSPICIOUS", "high", brand=True))
+    scam = analyze(scan).scam
+    assert scam is not None and scam.verdict == "SUSPICIOUS" and scam.level == 2 and scam.is_scam

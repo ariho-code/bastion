@@ -2516,6 +2516,60 @@ h3 {
     transform: translateY(0);
   }
 }
+/* --- scam & phishing verdict banner --- */
+.av-scam {
+  border: 1px solid;
+  border-radius: 14px;
+  padding: 18px 20px;
+  margin-bottom: 18px;
+}
+.av-scam-head {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+}
+.av-scam-icon {
+  font-size: 28px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+.av-scam-verdict {
+  font-family: var(--display);
+  font-weight: 800;
+  font-size: clamp(20px, 3.4vw, 28px);
+  letter-spacing: 0.02em;
+}
+.av-scam-brand {
+  font-size: 0.55em;
+  font-weight: 600;
+  opacity: 0.85;
+  letter-spacing: 0;
+}
+.av-scam-headline {
+  margin-top: 4px;
+  font-size: 15px;
+  line-height: 1.4;
+  color: var(--text, #e7eef7);
+}
+.av-scam-advice {
+  margin-top: 12px;
+  font-weight: 600;
+  font-size: 14px;
+  line-height: 1.45;
+}
+.av-scam-reasons {
+  margin-top: 10px;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13.5px;
+  opacity: 0.9;
+}
+.av-scam-reasons li {
+  list-style: disc;
+}
+
 .av-hero {
   display: flex;
   gap: 26px;

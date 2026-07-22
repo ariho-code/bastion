@@ -55,6 +55,16 @@ interface CVEMatch {
   url?: string; // advisory link (OSV)
 }
 
+interface ScamVerdict {
+  verdict: string; // SAFE / LOW RISK / SUSPICIOUS / DANGEROUS
+  level: number; // 0..3
+  is_scam: boolean;
+  brand?: string | null;
+  headline: string;
+  reasons: string[];
+  advice: string;
+}
+
 interface Analysis {
   target: string;
   grade: string;
@@ -71,6 +81,7 @@ interface Analysis {
   category_risk: CategoryRisk[];
   cve_matches: CVEMatch[];
   remediation: RemediationItem[];
+  scam?: ScamVerdict | null;
 }
 
 interface ModuleRun {
@@ -444,6 +455,9 @@ function Report({
 
   return (
     <div className="av-report">
+      {/* scam & phishing verdict — the first thing a person should see */}
+      {analysis.scam && <ScamBanner scam={analysis.scam} />}
+
       {/* hero */}
       <section className="av-hero">
         <Gauge value={analysis.risk_index} color={color} />
@@ -663,6 +677,54 @@ function SignalList({ findings }: { findings: Finding[] }) {
         </li>
       ))}
     </ul>
+  );
+}
+
+// scamStyle maps a 0..3 scam level to a color, background tint and icon.
+function scamStyle(level: number): { color: string; bg: string; border: string; icon: string } {
+  switch (level) {
+    case 3:
+      return { color: "#ef4444", bg: "rgba(239,68,68,0.10)", border: "rgba(239,68,68,0.45)", icon: "⛔" };
+    case 2:
+      return { color: "#f97316", bg: "rgba(249,115,22,0.10)", border: "rgba(249,115,22,0.45)", icon: "⚠️" };
+    case 1:
+      return { color: "#eab308", bg: "rgba(234,179,8,0.10)", border: "rgba(234,179,8,0.40)", icon: "⚠️" };
+    default:
+      return { color: "#22c55e", bg: "rgba(34,197,94,0.10)", border: "rgba(34,197,94,0.40)", icon: "✅" };
+  }
+}
+
+function ScamBanner({ scam }: { scam: ScamVerdict }) {
+  const s = scamStyle(scam.level);
+  return (
+    <section
+      className="av-scam"
+      role={scam.is_scam ? "alert" : undefined}
+      style={{ background: s.bg, borderColor: s.border }}
+    >
+      <div className="av-scam-head">
+        <span className="av-scam-icon" aria-hidden="true">
+          {s.icon}
+        </span>
+        <div>
+          <div className="av-scam-verdict" style={{ color: s.color }}>
+            {scam.verdict}
+            {scam.brand ? <span className="av-scam-brand"> · impersonates {scam.brand}</span> : null}
+          </div>
+          <p className="av-scam-headline">{scam.headline}</p>
+        </div>
+      </div>
+      <p className="av-scam-advice" style={{ color: s.color }}>
+        {scam.advice}
+      </p>
+      {scam.reasons.length > 0 && (
+        <ul className="av-scam-reasons">
+          {scam.reasons.map((r, i) => (
+            <li key={i}>{r}</li>
+          ))}
+        </ul>
+      )}
+    </section>
   );
 }
 

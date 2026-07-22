@@ -10,6 +10,8 @@ from __future__ import annotations
 
 import math
 
+import re
+
 from . import cve
 from .models import (
     CategoryRisk,
@@ -17,6 +19,7 @@ from .models import (
     Finding,
     RemediationItem,
     RiskAnalysis,
+    ScamVerdict,
     ScanResult,
 )
 
@@ -39,6 +42,7 @@ CATEGORY_WEIGHT: dict[str, float] = {
     "disclosure": 1.3,
     "surface": 1.4,
     "intel": 1.5,
+    "scam": 1.6,
 }
 
 CATEGORY_LABELS: dict[str, str] = {
@@ -50,6 +54,7 @@ CATEGORY_LABELS: dict[str, str] = {
     "disclosure": "Info Disclosure",
     "surface": "Attack Surface",
     "intel": "Threat Intelligence",
+    "scam": "Scam & Phishing",
 }
 
 # Rough remediation effort by category (config change vs. infra work).
@@ -62,6 +67,7 @@ EFFORT_BY_CATEGORY: dict[str, str] = {
     "disclosure": "Involved",
     "surface": "Involved",
     "intel": "Involved",
+    "scam": "Quick",
 }
 
 SEVERITY_RANK: dict[str, int] = {"critical": 1, "high": 2, "medium": 3, "low": 4, "info": 4}
@@ -164,9 +170,16 @@ def analyze(scan: ScanResult, extra_cves: list[CVEMatch] | None = None) -> RiskA
     remediation = _build_remediation(open_issues) + _cve_remediation(cve_matches)
     remediation.sort(key=lambda it: (int(it.priority[1]), -it.points_lost))
 
+    # --- scam / phishing verdict --------------------------------------------
+    scam = _scam_verdict(findings)
+
     # --- narrative -----------------------------------------------------------
     strengths = _strengths(findings)
     headline, summary = _narrative(scan, level, critical, high, medium, remediation, strengths)
+    # A scam verdict is the most important thing a person can be told — lead with it.
+    if scam is not None and scam.is_scam:
+        headline = scam.headline
+        summary.insert(0, scam.advice)
     if cve_matches:
         names = ", ".join(f"{m.product} {m.version}" for m in cve_matches[:3])
         summary.insert(
@@ -190,6 +203,73 @@ def analyze(scan: ScanResult, extra_cves: list[CVEMatch] | None = None) -> RiskA
         category_risk=category_risk,
         cve_matches=cve_matches,
         remediation=remediation,
+        scam=scam,
+    )
+
+
+_SCAM_LEVELS: dict[str, int] = {"SAFE": 0, "LOW RISK": 1, "SUSPICIOUS": 2, "DANGEROUS": 3}
+_SCAM_ADVICE: dict[int, str] = {
+    0: "No scam indicators were found, but always double-check the address bar before entering sensitive details.",
+    1: "A minor red flag was found. Nothing conclusive — proceed carefully and verify the site is genuine.",
+    2: "Several scam red flags were found. Do not enter passwords, payment or wallet details unless you are certain this site is legitimate.",
+    3: "Strong signs of a phishing or crypto-draining scam. Do NOT log in, pay, or connect a wallet. Leave the site.",
+}
+_BRAND_RE = re.compile(r"impersonating ([A-Z][\w.&/ -]+?)(?:\.| but| —|,|$)")
+
+
+def _scam_verdict(findings: list[Finding]) -> ScamVerdict | None:
+    """Distill the engine's phishing-module findings into one consumer verdict.
+
+    Returns None when the phishing module did not run (e.g. an older engine), so
+    older scans keep working unchanged.
+    """
+    phish = [f for f in findings if f.module == "phishing" or f.id.startswith("phishing.")]
+    if not phish:
+        return None
+
+    verdict_f = next((f for f in phish if f.id == "phishing.verdict"), None)
+
+    # Prefer the engine's explicit label ("Scam verdict: DANGEROUS"); fall back to
+    # the finding's severity if the format ever drifts.
+    label = "SAFE"
+    if verdict_f is not None:
+        _, _, tail = verdict_f.title.partition(":")
+        tail = tail.strip().upper()
+        if tail in _SCAM_LEVELS:
+            label = tail
+        else:
+            label = {
+                "critical": "DANGEROUS",
+                "high": "SUSPICIOUS",
+                "low": "LOW RISK",
+            }.get(verdict_f.severity, "SAFE")
+    level = _SCAM_LEVELS.get(label, 0)
+
+    headline = verdict_f.detail if verdict_f is not None else f"Scam assessment: {label}."
+
+    # Supporting reasons: every open (fail/warn) phishing signal except the
+    # verdict headline itself.
+    reasons = [
+        f.detail
+        for f in phish
+        if f.status in ("fail", "warn") and f.id != "phishing.verdict" and f.detail
+    ]
+
+    brand: str | None = None
+    imp = next((f for f in phish if f.id == "phishing.impersonation"), None)
+    if imp is not None and imp.status == "fail":
+        m = _BRAND_RE.search(imp.detail)
+        if m:
+            brand = m.group(1).strip()
+
+    return ScamVerdict(
+        verdict=label,
+        level=level,
+        is_scam=level >= 2,
+        brand=brand,
+        headline=headline,
+        reasons=reasons[:6],
+        advice=_SCAM_ADVICE.get(level, _SCAM_ADVICE[0]),
     )
 
 

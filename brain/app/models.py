@@ -84,6 +84,22 @@ class CVEMatch(BaseModel):
     url: str | None = None  # advisory link, when available (OSV)
 
 
+class ScamVerdict(BaseModel):
+    """The consumer-facing bottom line: is this site safe to interact with?
+
+    Derived from the engine's `phishing` module findings so the frontend can
+    render one unmistakable banner without re-deriving anything.
+    """
+
+    verdict: str  # SAFE / LOW RISK / SUSPICIOUS / DANGEROUS
+    level: int  # 0..3 (SAFE..DANGEROUS) for easy UI thresholding
+    is_scam: bool  # convenience: level >= 2
+    brand: str | None = None  # impersonated brand, if detected
+    headline: str  # one plain-English sentence for the banner
+    reasons: list[str] = Field(default_factory=list)  # supporting red flags
+    advice: str  # what the user should do
+
+
 class RiskAnalysis(BaseModel):
     target: str
     grade: str
@@ -100,6 +116,7 @@ class RiskAnalysis(BaseModel):
     category_risk: list[CategoryRisk]
     cve_matches: list[CVEMatch]
     remediation: list[RemediationItem]
+    scam: ScamVerdict | None = None  # present when the phishing module ran
     generated_by: str = "bastionscan-brain"
 
 
