@@ -17,9 +17,16 @@ class EngineError(Exception):
         self.status = status
 
 
-async def scan(target: str, profile: str, verified: bool) -> dict[str, Any]:
+async def scan(
+    target: str,
+    profile: str,
+    verified: bool,
+    scope: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     """Run a scan on the engine and return its raw JSON result."""
-    payload = {"target": target, "profile": profile, "verified": verified}
+    payload: dict[str, Any] = {"target": target, "profile": profile, "verified": verified}
+    if scope:
+        payload["scope"] = scope
     try:
         async with httpx.AsyncClient(timeout=config.engine_timeout, follow_redirects=True) as client:
             resp = await client.post(f"{config.engine_url}/v1/scan", json=payload)

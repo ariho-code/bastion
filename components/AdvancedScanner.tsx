@@ -177,7 +177,20 @@ export default function AdvancedScanner() {
   const [remaining, setRemaining] = useState(FREE_ADVANCED_LIMIT);
   const [modalOpen, setModalOpen] = useState(false);
   const [modalReason, setModalReason] = useState<string | undefined>(undefined);
+  // Enterprise Active scope — path exclusions and module opt-outs.
+  const [excludePaths, setExcludePaths] = useState("");
+  const [includePaths, setIncludePaths] = useState("");
+  const [disableModules, setDisableModules] = useState("");
+  const [safeMode, setSafeMode] = useState(true);
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  function parseList(raw: string): string[] {
+    return raw
+      .split(/[\n,]+/)
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .slice(0, 40);
+  }
 
   const refreshEntitlement = useCallback(() => {
     setPro(isPro());
@@ -226,7 +239,7 @@ export default function AdvancedScanner() {
       if (!isPro()) {
         if (p === "active") {
           openUpgrade(
-            "Active scanning — intrusive, ownership-verified checks like HTTP-method probing and content discovery — is a Pro capability."
+            "Active AppSec — ownership-verified DAST (SQLi, XSS, CSRF, path traversal, default-creds, open redirects) — is a Pro capability."
           );
           return;
         }
@@ -242,10 +255,21 @@ export default function AdvancedScanner() {
       setError("");
       setData(null);
       try {
+        const scope =
+          p === "active"
+            ? {
+                excludePaths: parseList(excludePaths),
+                includePaths: parseList(includePaths),
+                disableModules: parseList(disableModules),
+                safeMode,
+                maxRequests: 400,
+                requestDelayMs: 25,
+              }
+            : undefined;
         const res = await fetch("/api/deep", {
           method: "POST",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ target: t, profile: p }),
+          body: JSON.stringify({ target: t, profile: p, scope }),
         });
         const json = await res.json();
         if (!res.ok) throw new Error(json?.error || "Scan failed.");
@@ -258,13 +282,38 @@ export default function AdvancedScanner() {
         setLoading(false);
       }
     },
-    [target, profile, loading, openUpgrade, refreshEntitlement]
+    [
+      target,
+      profile,
+      loading,
+      openUpgrade,
+      refreshEntitlement,
+      excludePaths,
+      includePaths,
+      disableModules,
+      safeMode,
+    ]
   );
 
   // Deep-linkable scans: /advanced?target=example.com&profile=deep auto-runs.
+  // Enterprise console may leave scope in sessionStorage.
   useEffect(() => {
     syncProFromURL();
     refreshEntitlement();
+    try {
+      const rawScope = sessionStorage.getItem("bastion.enterprise.scope");
+      if (rawScope) {
+        const s = JSON.parse(rawScope) as {
+          excludePaths?: string[];
+          disableModules?: string[];
+        };
+        if (s.excludePaths?.length) setExcludePaths(s.excludePaths.join("\n"));
+        if (s.disableModules?.length) setDisableModules(s.disableModules.join(", "));
+        sessionStorage.removeItem("bastion.enterprise.scope");
+      }
+    } catch {
+      /* ignore */
+    }
     const params = new URLSearchParams(window.location.search);
     const t = params.get("target");
     if (!t) return;
@@ -273,7 +322,8 @@ export default function AdvancedScanner() {
       raw === "standard" ? "standard" : raw === "active" ? "active" : "deep";
     setTarget(t);
     setProfile(p);
-    run(t, p);
+    // Don't auto-run active without explicit user intent after verify — except deep/standard.
+    if (p !== "active") run(t, p);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -347,7 +397,10 @@ export default function AdvancedScanner() {
       {profile === "active" && pro && (
         <div className="av-verify">
           <p className="av-verify-lede">
-            <strong>Active scans are ownership-gated.</strong> They run intrusive checks (HTTP method
+            <strong>Active AppSec is ownership-gated.</strong> After DNS verification the engine runs
+            detection-grade DAST: SQLi, XSS, CSRF, path traversal, open redirects, JWT hygiene,
+            default-credential probes, method/content discovery — never bulk exploitation.
+            {" "}They also run intrusive checks (HTTP method
             probing and more), so they only unlock for domains you prove you control. Publish this DNS
             TXT record, then scan.
           </p>
@@ -371,6 +424,52 @@ export default function AdvancedScanner() {
               <p className="av-verify-hint">{verify.instruction}</p>
             </div>
           )}
+
+          <div className="av-scope">
+            <h4 className="av-scope-title">Enterprise scope (optional)</h4>
+            <p className="av-scope-lede">
+              Limit what Active DAST may touch. Excluded paths are never probed — use this for
+              production payment rails, partner APIs, or fragile subsystems.
+            </p>
+            <label className="av-scope-field">
+              <span>Exclude paths</span>
+              <textarea
+                value={excludePaths}
+                onChange={(e) => setExcludePaths(e.target.value)}
+                placeholder={"/billing/\n/admin/production\n/partner-api/"}
+                rows={3}
+              />
+            </label>
+            <label className="av-scope-field">
+              <span>Include only (optional allow-list)</span>
+              <textarea
+                value={includePaths}
+                onChange={(e) => setIncludePaths(e.target.value)}
+                placeholder={"/api/\n/login"}
+                rows={2}
+              />
+            </label>
+            <label className="av-scope-field">
+              <span>Disable modules</span>
+              <input
+                type="text"
+                value={disableModules}
+                onChange={(e) => setDisableModules(e.target.value)}
+                placeholder="authweak, discovery, sqli"
+              />
+            </label>
+            <label className="av-scope-check">
+              <input
+                type="checkbox"
+                checked={safeMode}
+                onChange={(e) => setSafeMode(e.target.checked)}
+              />
+              <span>
+                Safe mode (recommended) — detection-only probes, tiny default-cred set, no aggressive
+                retries
+              </span>
+            </label>
+          </div>
         </div>
       )}
 

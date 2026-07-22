@@ -6,7 +6,7 @@ package scan
 import "time"
 
 // EngineVersion is surfaced in scan results and the /health endpoint.
-const EngineVersion = "0.2.0"
+const EngineVersion = "0.3.0"
 
 // Status is the outcome of a single Finding.
 type Status string
@@ -43,6 +43,8 @@ const (
 	CategorySurface    Category = "surface"
 	CategoryIntel      Category = "intel"
 	CategoryScam       Category = "scam"
+	// CategoryActive is ownership-gated DAST: injection, XSS, CSRF, auth, etc.
+	CategoryActive Category = "active"
 )
 
 // CategoryLabels are human-readable names for report rendering. A category
@@ -58,6 +60,7 @@ var CategoryLabels = map[Category]string{
 	CategorySurface:    "Attack Surface",
 	CategoryIntel:      "Threat Intelligence",
 	CategoryScam:       "Scam & Phishing",
+	CategoryActive:     "Active AppSec (verified)",
 }
 
 // Finding is a single graded observation produced by a module.

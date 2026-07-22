@@ -74,6 +74,16 @@ func (e *Engine) Run(ctx context.Context, t *Target, profile Profile, env *Env) 
 			mu.Unlock()
 			continue
 		}
+		// Enterprise scope: owners can disable or allow-list Active modules.
+		if m.MinLevel() >= ProfileActive.Level && !t.Scope.ModuleAllowed(m.ID()) {
+			mu.Lock()
+			runs = append(runs, ModuleRun{
+				ID: m.ID(), Category: m.Category(),
+				Skipped: true, SkipReason: "disabled by scan scope",
+			})
+			mu.Unlock()
+			continue
+		}
 		if !m.Supports(t) {
 			mu.Lock()
 			runs = append(runs, ModuleRun{

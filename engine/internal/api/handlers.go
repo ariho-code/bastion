@@ -72,9 +72,10 @@ func (s *Server) handleModules(w http.ResponseWriter, r *http.Request) {
 }
 
 type scanRequest struct {
-	Target   string `json:"target"`
-	Profile  string `json:"profile"`
-	Verified bool   `json:"verified"`
+	Target   string     `json:"target"`
+	Profile  string     `json:"profile"`
+	Verified bool       `json:"verified"`
+	Scope    scan.Scope `json:"scope"`
 }
 
 // handleScan parses a scan request (JSON body or query params), enforces the
@@ -93,6 +94,8 @@ func (s *Server) handleScan(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	target.Verified = req.Verified
+	// Enterprise scope: only applied to verified Active scans (ignored otherwise).
+	target.Scope = scan.DefaultScope().Merge(req.Scope)
 
 	// Authorization (RBAC + ABAC): the caller's role must permit scanning, and
 	// tenant-isolation policy must allow acting on this resource.
@@ -143,6 +146,8 @@ func (s *Server) handleScan(w http.ResponseWriter, r *http.Request) {
 		target.Verified = verify.Verify(r.Context(), env, s.cfg.VerifySecret, target.Domain)
 	}
 
+	// Active profile without verification: still run deep modules; Active ones skip.
+	// Surface verification status clearly in the result for the dashboard.
 	result := s.engine.Run(r.Context(), target, profile, env)
 	s.metrics.IncScan()
 	s.metrics.ObserveScan(float64(result.DurationMs) / 1000.0)
@@ -167,10 +172,12 @@ func (s *Server) auditScan(r *http.Request, t *scan.Target, p scan.Profile, res 
 		Target:    t.Host,
 		Severity:  audit.SevNotice,
 		Metadata: map[string]any{
-			"profile": p.Name,
-			"grade":   res.Grade,
-			"score":   res.Score,
-			"dur_ms":  res.DurationMs,
+			"profile":  p.Name,
+			"grade":    res.Grade,
+			"score":    res.Score,
+			"dur_ms":   res.DurationMs,
+			"verified": t.Verified,
+			"scope":    t.Scope,
 		},
 	})
 }

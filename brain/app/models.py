@@ -124,6 +124,9 @@ class AssessRequest(BaseModel):
     target: str
     profile: str = "standard"
     verified: bool = False
+    # Enterprise Active scope: path exclusions, module allow/deny, rate caps.
+    # Forwarded to the engine only for profile=active (ownership-gated DAST).
+    scope: dict[str, Any] | None = None
 
 
 class AssessResponse(BaseModel):

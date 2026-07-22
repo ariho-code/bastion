@@ -43,6 +43,7 @@ export default function Nav() {
           </Link>
           <Link href="/scam-check">Scam check</Link>
           <Link href="/advanced">Advanced</Link>
+          <Link href="/enterprise">Enterprise</Link>
           <a href="/#faq">
             <T k="nav.faq" />
           </a>
@@ -81,6 +82,9 @@ export default function Nav() {
         </Link>
         <Link href="/advanced" onClick={close}>
           Advanced
+        </Link>
+        <Link href="/enterprise" onClick={close}>
+          Enterprise
         </Link>
         <a href="/#faq" onClick={close}>
           <T k="nav.faq" />

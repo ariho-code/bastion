@@ -66,7 +66,7 @@ async def analyze_endpoint(scan: ScanResult) -> RiskAnalysis:
 async def assess_endpoint(req: AssessRequest) -> AssessResponse:
     """Drive the engine for `target`, then return the scan plus its analysis."""
     try:
-        raw = await engine_client.scan(req.target, req.profile, req.verified)
+        raw = await engine_client.scan(req.target, req.profile, req.verified, scope=req.scope)
     except engine_client.EngineError as exc:
         raise HTTPException(status_code=exc.status, detail=str(exc)) from exc
 

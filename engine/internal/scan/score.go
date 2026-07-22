@@ -30,6 +30,7 @@ var categoryOrder = map[Category]int{
 	CategorySurface:    6,
 	CategoryIntel:      7,
 	CategoryScam:       8,
+	CategoryActive:     9,
 }
 
 // scoreByCategory aggregates findings into per-category scores and an overall

@@ -20,20 +20,27 @@ import (
 	"github.com/ariho-code/bastionscan/engine/internal/scan"
 
 	// Scanner modules — imported for their init()-time registration.
+	_ "github.com/ariho-code/bastionscan/engine/internal/modules/authweak"
 	_ "github.com/ariho-code/bastionscan/engine/internal/modules/content"
 	_ "github.com/ariho-code/bastionscan/engine/internal/modules/cookies"
 	_ "github.com/ariho-code/bastionscan/engine/internal/modules/cors"
+	_ "github.com/ariho-code/bastionscan/engine/internal/modules/csrf"
 	_ "github.com/ariho-code/bastionscan/engine/internal/modules/discovery"
 	_ "github.com/ariho-code/bastionscan/engine/internal/modules/dns"
 	_ "github.com/ariho-code/bastionscan/engine/internal/modules/exposure"
 	_ "github.com/ariho-code/bastionscan/engine/internal/modules/fingerprint"
 	_ "github.com/ariho-code/bastionscan/engine/internal/modules/headers"
+	_ "github.com/ariho-code/bastionscan/engine/internal/modules/inject"
 	_ "github.com/ariho-code/bastionscan/engine/internal/modules/intel"
+	_ "github.com/ariho-code/bastionscan/engine/internal/modules/jwtcheck"
 	_ "github.com/ariho-code/bastionscan/engine/internal/modules/methods"
+	_ "github.com/ariho-code/bastionscan/engine/internal/modules/openredirect"
 	_ "github.com/ariho-code/bastionscan/engine/internal/modules/phishing"
 	_ "github.com/ariho-code/bastionscan/engine/internal/modules/ports"
+	_ "github.com/ariho-code/bastionscan/engine/internal/modules/sqli"
 	_ "github.com/ariho-code/bastionscan/engine/internal/modules/subdomains"
 	_ "github.com/ariho-code/bastionscan/engine/internal/modules/tls"
+	_ "github.com/ariho-code/bastionscan/engine/internal/modules/xss"
 )
 
 func main() {

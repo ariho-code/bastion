@@ -14,6 +14,7 @@ type Target struct {
 	Port     string   // explicit port, or "" for scheme default
 	Domain   string   // registrable domain (eTLD+1, best-effort)
 	Verified bool     // ownership-verified — unlocks Active-level modules
+	Scope    Scope    // enterprise constraints for Active probes (verified only)
 }
 
 // twoLevelTLDs is a small, best-effort set of public suffixes with a second

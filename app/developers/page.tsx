@@ -121,7 +121,7 @@ const PROFILES = [
   { name: "passive", desc: "Zero-touch. Only observes what a normal client already sees.", gated: false },
   { name: "standard", desc: "Default. Light, safe, unauthenticated probing (TLS, headers, DNS, cookies, fingerprint, content).", gated: false },
   { name: "deep", desc: "Thorough non-destructive analysis: cipher enumeration, attack-surface mapping, exposure & CORS checks.", gated: false },
-  { name: "active", desc: "Intrusive checks that touch the target directly (HTTP methods, content discovery). Requires ownership verification.", gated: true },
+  { name: "active", desc: "Ownership-gated Active AppSec DAST: SQLi, XSS, CSRF, path traversal, JWT hygiene, default-creds, open redirects, discovery & methods. Supports enterprise scope exclusions.", gated: true },
 ];
 
 const VERIFY_SAMPLE = `# 1. Get the DNS TXT record for your domain

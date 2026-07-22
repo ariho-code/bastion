@@ -87,6 +87,26 @@ modules only run against **ownership-verified** targets — the ethical model
 that separates "analyze anything safely" from "aggressively probe your own
 assets."
 
+### Active AppSec (ownership-gated DAST)
+
+When a domain publishes the `bastionscan-verify` DNS TXT token, profile
+`active` unlocks detection-grade modules (not weaponized exploits):
+
+| Module | What it detects | Precision rule |
+| ------ | --------------- | -------------- |
+| `sqli` | SQL injection | Known DB error fingerprints only |
+| `xss` | Reflected XSS | Unique canary reflected **unencoded** |
+| `inject` | Path traversal / LFI | `/etc/passwd` or `win.ini` content shape |
+| `csrf` | Missing CSRF tokens | Sensitive state-changing forms only |
+| `authweak` | Default credentials | ≤5 pairs, lockout-aware, SafeMode default |
+| `openredirect` | Open redirects | External canary host in Location |
+| `jwtcheck` | JWT misconfig | `alg=none` / empty signature |
+| `discovery` / `methods` | Attack surface | Content & HTTP method probes |
+
+Enterprise **scope** (`excludePaths`, `includePaths`, `disableModules`,
+`maxRequests`, `safeMode`) constrains every speculative request. The
+`bastionscan` CLI and `/enterprise` console ship installers for macOS/Linux.
+
 ### Safety by design
 
 - **SSRF guard** blocks loopback, private, link-local, and CGNAT ranges so the

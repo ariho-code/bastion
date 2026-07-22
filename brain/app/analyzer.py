@@ -43,6 +43,7 @@ CATEGORY_WEIGHT: dict[str, float] = {
     "surface": 1.4,
     "intel": 1.5,
     "scam": 1.6,
+    "active": 1.8,  # ownership-gated DAST hits are high-signal
 }
 
 CATEGORY_LABELS: dict[str, str] = {
@@ -55,6 +56,7 @@ CATEGORY_LABELS: dict[str, str] = {
     "surface": "Attack Surface",
     "intel": "Threat Intelligence",
     "scam": "Scam & Phishing",
+    "active": "Active AppSec (verified)",
 }
 
 # Rough remediation effort by category (config change vs. infra work).
@@ -68,6 +70,7 @@ EFFORT_BY_CATEGORY: dict[str, str] = {
     "surface": "Involved",
     "intel": "Involved",
     "scam": "Quick",
+    "active": "Involved",
 }
 
 SEVERITY_RANK: dict[str, int] = {"critical": 1, "high": 2, "medium": 3, "low": 4, "info": 4}
