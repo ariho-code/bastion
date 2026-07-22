@@ -62,6 +62,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /metrics", s.handleMetrics)
 	mux.HandleFunc("GET /openapi.yaml", s.handleOpenAPI)
 	mux.HandleFunc("GET /v1/modules", s.handleModules)
+	mux.HandleFunc("GET /v1/verify", s.handleVerify)
 	mux.HandleFunc("POST /v1/scan", s.handleScan)
 	mux.HandleFunc("GET /v1/scan", s.handleScan) // convenience for ?target=
 

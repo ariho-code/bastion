@@ -129,6 +129,7 @@ func (e *Engine) Run(ctx context.Context, t *Target, profile Profile, env *Env) 
 		Host:          t.Host,
 		Domain:        t.Domain,
 		Profile:       profile.Name,
+		Verified:      t.Verified,
 		Grade:         GradeFromScore(overall),
 		Score:         overall,
 		Categories:    cats,

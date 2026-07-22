@@ -104,6 +104,7 @@ type ScanResult struct {
 	Host          string          `json:"host"`
 	Domain        string          `json:"domain"`
 	Profile       string          `json:"profile"`
+	Verified      bool            `json:"verified"`
 	Grade         string          `json:"grade"`
 	Score         int             `json:"score"`
 	Categories    []CategoryScore `json:"categories"`

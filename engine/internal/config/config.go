@@ -20,6 +20,7 @@ type Config struct {
 	ScanTimeout    time.Duration // whole-scan deadline
 	MaxCipherTests int           // cap on TLS cipher probes per scan
 	TargetCooldown time.Duration // min interval between scans of the same host
+	VerifySecret   string        // HMAC secret for domain-ownership tokens
 
 	// --- API auth & rate limiting -------------------------------------------
 	APIKeys       map[string]string // key -> tier (from API_KEYS)
@@ -44,6 +45,7 @@ func Load() Config {
 		ScanTimeout:    envDur("SCAN_TIMEOUT", 60*time.Second),
 		MaxCipherTests: envInt("MAX_CIPHER_TESTS", 40),
 		TargetCooldown: envDur("TARGET_COOLDOWN", 8*time.Second),
+		VerifySecret:   env("VERIFY_SECRET", "bastionscan-dev-secret-change-in-production"),
 
 		APIKeys:       parseAPIKeys(env("API_KEYS", "")),
 		APIRequireKey: envBool("API_REQUIRE_KEY", false),

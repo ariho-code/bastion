@@ -26,6 +26,7 @@ import (
 	_ "github.com/ariho-code/bastionscan/engine/internal/modules/fingerprint"
 	_ "github.com/ariho-code/bastionscan/engine/internal/modules/headers"
 	_ "github.com/ariho-code/bastionscan/engine/internal/modules/intel"
+	_ "github.com/ariho-code/bastionscan/engine/internal/modules/methods"
 	_ "github.com/ariho-code/bastionscan/engine/internal/modules/ports"
 	_ "github.com/ariho-code/bastionscan/engine/internal/modules/subdomains"
 	_ "github.com/ariho-code/bastionscan/engine/internal/modules/tls"

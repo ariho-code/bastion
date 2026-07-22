@@ -11,6 +11,7 @@ import (
 
 	"github.com/ariho-code/bastionscan/engine/internal/abuse"
 	"github.com/ariho-code/bastionscan/engine/internal/scan"
+	"github.com/ariho-code/bastionscan/engine/internal/verify"
 )
 
 // handleHealth reports liveness plus a snapshot of engine capabilities.
@@ -22,6 +23,26 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 		"uptimeSec":    int(time.Since(s.started).Seconds()),
 		"authRequired": s.auth.RequireKey(),
 		"time":         time.Now().UTC(),
+	})
+}
+
+// handleVerify issues the DNS TXT record an owner must publish to unlock
+// Active-tier scans for their domain. Public and stateless — the token is a
+// deterministic HMAC of the domain.
+func (s *Server) handleVerify(w http.ResponseWriter, r *http.Request) {
+	target, err := scan.NewTarget(r.URL.Query().Get("target"))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	token := verify.Token(s.cfg.VerifySecret, target.Domain)
+	writeJSON(w, http.StatusOK, map[string]any{
+		"domain":      target.Domain,
+		"recordName":  verify.RecordName,
+		"recordType":  "TXT",
+		"token":       token,
+		"record":      verify.RecordName + "=" + token,
+		"instruction": "Add a DNS TXT record on " + target.Domain + " with the value above, then scan with profile=active to unlock ownership-gated checks.",
 	})
 }
 
@@ -96,6 +117,15 @@ func (s *Server) handleScan(w http.ResponseWriter, r *http.Request) {
 		Resolver:  net.DefaultResolver,
 		UserAgent: "BastionscanEngine/" + scan.EngineVersion + " (+https://bastionscan.com)",
 	}
+
+	// Ownership gating for the Active tier. The engine is authoritative: in
+	// production it confirms the DNS token itself rather than trusting the
+	// caller's flag. The caller flag is honored only in dev (ALLOW_PRIVATE).
+	target.Verified = req.Verified && s.cfg.AllowPrivate
+	if profile.Level >= scan.ProfileActive.Level && !target.Verified {
+		target.Verified = verify.Verify(r.Context(), env, s.cfg.VerifySecret, target.Domain)
+	}
+
 	result := s.engine.Run(r.Context(), target, profile, env)
 	s.metrics.IncScan()
 	s.metrics.ObserveScan(float64(result.DurationMs) / 1000.0)
