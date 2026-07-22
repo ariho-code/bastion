@@ -21,6 +21,9 @@ type Env struct {
 	Resolver *net.Resolver
 	// UserAgent is the identifying UA string modules should send.
 	UserAgent string
+	// SessionHeaders are owner-supplied auth headers for verified Active scans.
+	// Applied to shared page fetch and Active probes when present.
+	SessionHeaders http.Header
 
 	pageOnce sync.Once
 	page     *Page
@@ -83,6 +86,11 @@ func (e *Env) fetchPage(ctx context.Context, t *Target) *Page {
 		}
 		req.Header.Set("User-Agent", e.UserAgent)
 		req.Header.Set("Accept", "text/html,application/xhtml+xml,*/*")
+		for k, vs := range e.SessionHeaders {
+			for _, v := range vs {
+				req.Header.Add(k, v)
+			}
+		}
 		resp, err := e.HTTP.Do(req)
 		if err != nil {
 			lastErr = err

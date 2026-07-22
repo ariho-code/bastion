@@ -65,6 +65,18 @@ interface ScamVerdict {
   advice: string;
 }
 
+interface AIInsights {
+  provider: string;
+  model: string;
+  summary: string;
+  top_priorities: { title?: string; why?: string; effort?: string }[];
+  vertical_advice: string;
+  false_positive_risks: string[];
+  confidence: number;
+  learning_lessons_used: number;
+  source: string;
+}
+
 interface Analysis {
   target: string;
   grade: string;
@@ -82,6 +94,8 @@ interface Analysis {
   cve_matches: CVEMatch[];
   remediation: RemediationItem[];
   scam?: ScamVerdict | null;
+  ai?: AIInsights | null;
+  scan_id?: string | null;
 }
 
 interface ModuleRun {
@@ -123,9 +137,9 @@ const STAGES = [
   "Resolving target & network…",
   "Negotiating TLS handshakes…",
   "Mapping attack surface…",
-  "Probing exposed endpoints…",
-  "Correlating threat intelligence…",
-  "Scoring risk & prioritizing fixes…",
+  "Running ownership-gated DAST…",
+  "Industry vertical probes…",
+  "AI brain learning & risk scoring…",
 ];
 
 function riskColor(level: string): string {
@@ -182,6 +196,9 @@ export default function AdvancedScanner() {
   const [includePaths, setIncludePaths] = useState("");
   const [disableModules, setDisableModules] = useState("");
   const [safeMode, setSafeMode] = useState(true);
+  const [vertical, setVertical] = useState("general");
+  const [sessionCookie, setSessionCookie] = useState("");
+  const [sessionAuth, setSessionAuth] = useState("");
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
 
   function parseList(raw: string): string[] {
@@ -264,12 +281,20 @@ export default function AdvancedScanner() {
                 safeMode,
                 maxRequests: 400,
                 requestDelayMs: 25,
+                vertical,
+                session:
+                  sessionCookie.trim() || sessionAuth.trim()
+                    ? {
+                        cookie: sessionCookie.trim() || undefined,
+                        authorization: sessionAuth.trim() || undefined,
+                      }
+                    : undefined,
               }
-            : undefined;
+            : { vertical };
         const res = await fetch("/api/deep", {
           method: "POST",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ target: t, profile: p, scope }),
+          body: JSON.stringify({ target: t, profile: p, scope, ai: true }),
         });
         const json = await res.json();
         if (!res.ok) throw new Error(json?.error || "Scan failed.");
@@ -292,6 +317,9 @@ export default function AdvancedScanner() {
       includePaths,
       disableModules,
       safeMode,
+      vertical,
+      sessionCookie,
+      sessionAuth,
     ]
   );
 
@@ -309,6 +337,9 @@ export default function AdvancedScanner() {
         };
         if (s.excludePaths?.length) setExcludePaths(s.excludePaths.join("\n"));
         if (s.disableModules?.length) setDisableModules(s.disableModules.join(", "));
+        if ((s as { vertical?: string }).vertical) {
+          setVertical((s as { vertical?: string }).vertical || "general");
+        }
         sessionStorage.removeItem("bastion.enterprise.scope");
       }
     } catch {
@@ -469,6 +500,36 @@ export default function AdvancedScanner() {
                 retries
               </span>
             </label>
+            <label className="av-scope-field">
+              <span>Industry vertical</span>
+              <select value={vertical} onChange={(e) => setVertical(e.target.value)}>
+                <option value="general">General</option>
+                <option value="banking">Banking / fintech</option>
+                <option value="ecommerce">E-commerce</option>
+                <option value="saas">SaaS / B2B</option>
+                <option value="scam">Anti-fraud / kit cleanup</option>
+              </select>
+            </label>
+            <label className="av-scope-field">
+              <span>Session cookie (optional, your account only)</span>
+              <input
+                type="password"
+                autoComplete="off"
+                value={sessionCookie}
+                onChange={(e) => setSessionCookie(e.target.value)}
+                placeholder="session=…; csrftoken=…"
+              />
+            </label>
+            <label className="av-scope-field">
+              <span>Authorization header (optional)</span>
+              <input
+                type="password"
+                autoComplete="off"
+                value={sessionAuth}
+                onChange={(e) => setSessionAuth(e.target.value)}
+                placeholder="Bearer eyJ…"
+              />
+            </label>
           </div>
         </div>
       )}
@@ -546,6 +607,31 @@ function Report({
     () => scan.findings.filter((f) => f.category === "intel"),
     [scan.findings]
   );
+  const activeFindings = useMemo(
+    () => scan.findings.filter((f) => f.category === "active" || f.category === "scam"),
+    [scan.findings]
+  );
+
+  const sendFeedback = useCallback(
+    async (findingId: string, label: string) => {
+      try {
+        await fetch("/api/feedback", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            finding_id: findingId,
+            label,
+            target: analysis.target,
+            scan_id: analysis.scan_id || "",
+          }),
+        });
+      } catch {
+        /* best-effort learning */
+      }
+    },
+    [analysis.target, analysis.scan_id]
+  );
+
   const content = useMemo(
     () => scan.findings.filter((f) => f.category === "content"),
     [scan.findings]
@@ -556,6 +642,39 @@ function Report({
     <div className="av-report">
       {/* scam & phishing verdict — the first thing a person should see */}
       {analysis.scam && <ScamBanner scam={analysis.scam} />}
+
+      {analysis.ai && (
+        <section className="av-ai">
+          <h4 className="av-card-title">
+            AI security brain{" "}
+            <span style={{ fontWeight: 400, color: "#94a3b8", fontSize: "0.85em" }}>
+              ({analysis.ai.provider}/{analysis.ai.model || analysis.ai.source})
+            </span>
+          </h4>
+          <p className="av-ai-summary">{analysis.ai.summary}</p>
+          {analysis.ai.vertical_advice && (
+            <p className="av-ai-vert">
+              <strong>Vertical:</strong> {analysis.ai.vertical_advice}
+            </p>
+          )}
+          {analysis.ai.top_priorities?.length > 0 && (
+            <ul className="av-ai-list">
+              {analysis.ai.top_priorities.slice(0, 5).map((p, i) => (
+                <li key={i}>
+                  <strong>{p.title}</strong>
+                  {p.why ? ` — ${p.why}` : ""}
+                  {p.effort ? ` (${p.effort})` : ""}
+                </li>
+              ))}
+            </ul>
+          )}
+          <p className="av-ai-meta">
+            Confidence {(analysis.ai.confidence * 100).toFixed(0)}% · learned from{" "}
+            {analysis.ai.learning_lessons_used} past lesson(s)
+            {analysis.scan_id ? ` · scan ${analysis.scan_id.slice(0, 8)}` : ""}
+          </p>
+        </section>
+      )}
 
       {/* hero */}
       <section className="av-hero">
@@ -692,6 +811,50 @@ function Report({
                 <span className="av-bar-val">{c.risk}</span>
               </div>
             ))}
+          </div>
+        </section>
+      )}
+
+      {/* Active AppSec findings + human learning feedback */}
+      {activeFindings.length > 0 && (
+        <section className="av-card">
+          <h4 className="av-card-title">Active AppSec &amp; scam signals</h4>
+          <p className="av-ai-meta" style={{ marginTop: 0 }}>
+            Label findings to train the brain — false positives get down-weighted on future scans.
+          </p>
+          <div className="av-rem">
+            {activeFindings
+              .filter((f) => f.status === "fail" || f.status === "warn")
+              .slice(0, 20)
+              .map((f) => (
+                <div className="av-rem-item" key={f.id + f.title}>
+                  <span
+                    className="av-chip"
+                    style={{ color: sevColor(f.severity), borderColor: sevColor(f.severity) }}
+                  >
+                    {f.severity}
+                  </span>
+                  <div className="av-rem-body">
+                    <div className="av-rem-head">
+                      <strong>{f.title}</strong>
+                      <span className="av-effort">{f.id}</span>
+                    </div>
+                    <p className="av-rem-detail">{f.detail}</p>
+                    {f.evidence && <p className="av-fix">evidence: {f.evidence}</p>}
+                    <div className="av-fb">
+                      <button type="button" className="av-fb-btn" onClick={() => sendFeedback(f.id, "true_positive")}>
+                        True positive
+                      </button>
+                      <button type="button" className="av-fb-btn" onClick={() => sendFeedback(f.id, "false_positive")}>
+                        False positive
+                      </button>
+                      <button type="button" className="av-fb-btn" onClick={() => sendFeedback(f.id, "fixed")}>
+                        Fixed
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
           </div>
         </section>
       )}

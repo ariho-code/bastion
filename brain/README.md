@@ -19,11 +19,15 @@ out of the latency-critical Go scanner lets each scale and evolve independently.
 
 ## API
 
-| Method | Path          | Purpose                                             |
-| ------ | ------------- | --------------------------------------------------- |
-| GET    | `/health`     | Liveness + whether the engine is reachable          |
-| POST   | `/v1/analyze` | Analyze an engine `ScanResult` you already have     |
-| POST   | `/v1/assess`  | Give `{target, profile}` — brain drives the engine then analyzes |
+| Method | Path             | Purpose                                             |
+| ------ | ---------------- | --------------------------------------------------- |
+| GET    | `/health`        | Liveness + engine + AI provider status              |
+| POST   | `/v1/analyze`    | Analyze an engine `ScanResult` you already have     |
+| POST   | `/v1/assess`     | Drive engine + analyze + AI insights + record learn |
+| POST   | `/v1/feedback`   | Label findings (true/false positive) to retrain     |
+| GET    | `/v1/history`    | Recent scans for enterprise dashboards              |
+| GET    | `/v1/learning`   | Feedback stats + finding weights + lessons          |
+| POST   | `/v1/ai/insight` | AI enrichment without a full re-scan                |
 
 ```bash
 # End-to-end: one call, target in, scan + analysis out.
@@ -50,6 +54,12 @@ docker build -t bastionscan-brain . && docker run -p 8090:8090 bastionscan-brain
 | `PORT`            | `8090`                  | Listen port (Render injects it)  |
 | `ALLOWED_ORIGINS` | `*`                     | CORS allowlist (comma-separated) |
 | `ENGINE_TIMEOUT`  | `90`                    | Seconds to wait on the engine    |
+| `AI_PROVIDER`     | `deepseek`              | `deepseek` \| `grok` \| `claude` \| `offline` |
+| `DEEPSEEK_API_KEY`| —                       | Default LLM key                  |
+| `XAI_API_KEY`     | —                       | Grok / xAI when `AI_PROVIDER=grok` |
+| `ANTHROPIC_API_KEY` | —                     | Claude when `AI_PROVIDER=claude` |
+| `BASTION_LEARNING_DIR` | `/tmp/bastion-learning` | Scan + feedback JSONL store |
+| `AI_ON_ASSESS`    | `true`                  | Attach AI insights on assess     |
 
 ## Risk model
 

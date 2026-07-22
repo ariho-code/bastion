@@ -126,9 +126,14 @@ def _priority(f: Finding) -> str:
     return f"P{rank}"
 
 
-def analyze(scan: ScanResult, extra_cves: list[CVEMatch] | None = None) -> RiskAnalysis:
+def analyze(
+    scan: ScanResult,
+    extra_cves: list[CVEMatch] | None = None,
+    learning_weights: dict[str, float] | None = None,
+) -> RiskAnalysis:
     findings = scan.findings
     open_issues = [f for f in findings if _is_open(f)]
+    lw = learning_weights or {}
 
     # --- severity tally ------------------------------------------------------
     fails = [f for f in findings if f.status == "fail"]
@@ -145,7 +150,8 @@ def analyze(scan: ScanResult, extra_cves: list[CVEMatch] | None = None) -> RiskA
     # --- risk index ----------------------------------------------------------
     # Known-vulnerable software is a strong, concrete risk signal, so it adds to
     # the raw figure alongside the open findings.
-    raw = sum(_weight(f) for f in open_issues)
+    # Learning weights (from operator FP/TP feedback) softly rebalance noise.
+    raw = sum(_weight(f) * float(lw.get(f.id, 1.0)) for f in open_issues)
     raw += sum(SEVERITY_WEIGHT.get(m.severity, 0.0) * 1.6 for m in cve_matches)
     risk_index = round(100 * (1 - math.exp(-raw / _SATURATION)))
     risk_index = max(0, min(100, risk_index))

@@ -1,0 +1,51 @@
+# Bastionscan CI security gate — fail the pipeline when ownership-verified
+# Active scans report Critical/High risk or failing grades.
+#
+# Required secrets (repo or org):
+#   BASTION_ENGINE_URL   — engine base URL
+#   BASTION_API_KEY      — optional API key
+#   BASTION_TARGET       — hostname you own (must have bastionscan-verify TXT)
+#
+# Optional vars:
+#   BASTION_VERTICAL     — banking | ecommerce | saas | scam | general
+#   BASTION_MIN_GRADE    — A|B|C|D  (default B)
+name: Bastion security gate
+
+on:
+  workflow_dispatch:
+  # schedule:
+  #   - cron: "0 6 * * 1"   # weekly Monday 06:00 UTC
+
+jobs:
+  active-dast:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+
+      - name: Build bastionscan CLI
+        working-directory: engine
+        run: go build -o "$GITHUB_WORKSPACE/bastionscan" ./cmd/bastionscan
+
+      - name: Run Active gate
+        env:
+          BASTION_ENGINE_URL: ${{ secrets.BASTION_ENGINE_URL }}
+          BASTION_API_KEY: ${{ secrets.BASTION_API_KEY }}
+          BASTION_TARGET: ${{ secrets.BASTION_TARGET }}
+          BASTION_VERTICAL: ${{ vars.BASTION_VERTICAL || 'general' }}
+          BASTION_MIN_GRADE: ${{ vars.BASTION_MIN_GRADE || 'B' }}
+        run: |
+          set -euo pipefail
+          if [ -z "${BASTION_ENGINE_URL:-}" ] || [ -z "${BASTION_TARGET:-}" ]; then
+            echo "Skip: set BASTION_ENGINE_URL and BASTION_TARGET secrets to enable the gate."
+            exit 0
+          fi
+          "$GITHUB_WORKSPACE/bastionscan" active "$BASTION_TARGET" \
+            --exclude /billing --exclude /admin/production \
+            --max-requests 300 \
+            --gate-grade "${BASTION_MIN_GRADE}"

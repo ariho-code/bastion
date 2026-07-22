@@ -65,9 +65,13 @@ Active flags:
   --include PATH       Include-only path prefix (repeatable)
   --disable MODULE     Disable module id (repeatable: sqli,xss,authweak,…)
   --enable MODULE      Allow-list module id (repeatable)
+  --vertical NAME      banking|ecommerce|saas|scam|general
+  --cookie VALUE       Session Cookie header (owner account only)
+  --auth VALUE         Authorization header (Bearer …)
   --max-requests N     Cap speculative Active HTTP requests (default 400)
   --delay MS           Delay between probes (default 25)
   --no-safe            Disable SafeMode (not recommended)
+  --gate-grade G       CI gate: exit 1 if grade worse than G (A|B|C|D)
 
 Env:
   BASTION_ENGINE_URL   Engine base URL (default http://127.0.0.1:8080)
@@ -98,6 +102,10 @@ func runScan(base, profile string, args []string) {
 	maxReq := fs.Int("max-requests", 400, "max speculative requests")
 	delay := fs.Int("delay", 25, "probe delay ms")
 	noSafe := fs.Bool("no-safe", false, "disable safe mode")
+	vertical := fs.String("vertical", "general", "industry vertical")
+	cookie := fs.String("cookie", "", "session cookie header")
+	authz := fs.String("auth", "", "authorization header")
+	gateGrade := fs.String("gate-grade", "", "CI gate minimum grade")
 	fs.Var(&excludes, "exclude", "exclude path")
 	fs.Var(&includes, "include", "include path")
 	fs.Var(&disables, "disable", "disable module")
@@ -109,18 +117,30 @@ func runScan(base, profile string, args []string) {
 	}
 	target := rest[0]
 	safe := !*noSafe
+	scope := map[string]any{
+		"excludePaths":   []string(excludes),
+		"includePaths":   []string(includes),
+		"disableModules": []string(disables),
+		"enableModules":  []string(enables),
+		"maxRequests":    *maxReq,
+		"requestDelayMs": *delay,
+		"safeMode":       safe,
+		"vertical":       *vertical,
+	}
+	if *cookie != "" || *authz != "" {
+		sess := map[string]any{}
+		if *cookie != "" {
+			sess["cookie"] = *cookie
+		}
+		if *authz != "" {
+			sess["authorization"] = *authz
+		}
+		scope["session"] = sess
+	}
 	body := map[string]any{
 		"target":  target,
 		"profile": profile,
-		"scope": map[string]any{
-			"excludePaths":   []string(excludes),
-			"includePaths":   []string(includes),
-			"disableModules": []string(disables),
-			"enableModules":  []string(enables),
-			"maxRequests":    *maxReq,
-			"requestDelayMs": *delay,
-			"safeMode":       safe,
-		},
+		"scope":   scope,
 	}
 	raw, err := httpPostJSON(base+"/v1/scan", body)
 	if err != nil {
@@ -158,6 +178,26 @@ func runScan(base, profile string, args []string) {
 	} else {
 		fmt.Printf("\n%d failing finding(s).\n", fails)
 	}
+
+	if g := strings.ToUpper(strings.TrimSpace(*gateGrade)); g != "" {
+		got, _ := result["grade"].(string)
+		if !gradeAtLeast(got, g) {
+			fmt.Fprintf(os.Stderr, "CI gate failed: grade %s is worse than required %s\n", got, g)
+			os.Exit(1)
+		}
+		fmt.Printf("CI gate passed: grade %s meets %s\n", got, g)
+	}
+}
+
+// gradeAtLeast reports whether got is A..F and at least as good as min.
+func gradeAtLeast(got, min string) bool {
+	rank := map[string]int{"A": 5, "B": 4, "C": 3, "D": 2, "F": 1}
+	g, ok1 := rank[strings.ToUpper(got)]
+	m, ok2 := rank[strings.ToUpper(min)]
+	if !ok1 || !ok2 {
+		return true
+	}
+	return g >= m
 }
 
 func runModules(base string) {

@@ -38,7 +38,67 @@ class Config:
         self.osv_timeout: float = float(os.getenv("OSV_TIMEOUT", "6"))
         self.osv_cache_ttl: float = float(os.getenv("OSV_CACHE_TTL", "21600"))  # 6h
 
-        self.version: str = "0.1.0"
+        # --- AI intelligence (DeepSeek default; swap via AI_PROVIDER) ----------
+        # Providers: deepseek | grok | xai | claude | openai | offline
+        self.ai_enabled: bool = os.getenv("AI_ENABLED", "true").strip().lower() not in (
+            "0",
+            "false",
+            "no",
+        )
+        self.ai_provider: str = os.getenv("AI_PROVIDER", "deepseek").strip().lower()
+        self.ai_timeout: float = float(os.getenv("AI_TIMEOUT", "45"))
+        self.ai_api_key, self.ai_base_url, self.ai_model = _ai_profile(
+            self.ai_provider,
+            explicit_key=os.getenv("AI_API_KEY", "").strip(),
+            explicit_base=os.getenv("AI_BASE_URL", "").strip(),
+            explicit_model=os.getenv("AI_MODEL", "").strip(),
+        )
+        self.learning_dir: str = os.getenv("BASTION_LEARNING_DIR", "/tmp/bastion-learning")
+        self.ai_on_assess: bool = os.getenv("AI_ON_ASSESS", "true").strip().lower() not in (
+            "0",
+            "false",
+            "no",
+        )
+
+        self.version: str = "0.2.0"
+
+
+def _ai_profile(
+    provider: str,
+    *,
+    explicit_key: str,
+    explicit_base: str,
+    explicit_model: str,
+) -> tuple[str, str, str]:
+    """Resolve API key, base URL, and model for the selected provider.
+
+    DeepSeek is the default training/inference brain. Switching to Grok (xAI)
+    or Claude later is an env-var change — no code rewrite.
+    """
+    profiles: dict[str, tuple[str, str, str, str]] = {
+        # provider: (env_key_name, default_base, default_model, fallback_env)
+        "deepseek": ("DEEPSEEK_API_KEY", "https://api.deepseek.com/v1", "deepseek-chat", ""),
+        "grok": ("XAI_API_KEY", "https://api.x.ai/v1", "grok-4.5", "XAI_API_KEY"),
+        "xai": ("XAI_API_KEY", "https://api.x.ai/v1", "grok-4.5", ""),
+        "claude": (
+            "ANTHROPIC_API_KEY",
+            "https://api.anthropic.com/v1",
+            "claude-sonnet-4-20250514",
+            "",
+        ),
+        "openai": ("OPENAI_API_KEY", "https://api.openai.com/v1", "gpt-4o-mini", ""),
+        "offline": ("", "", "offline", ""),
+    }
+    env_name, base, model, _ = profiles.get(provider, profiles["deepseek"])
+    key = explicit_key or (os.getenv(env_name, "").strip() if env_name else "")
+    # Grok/xAI alias: also accept GROK_API_KEY
+    if not key and provider in ("grok", "xai"):
+        key = os.getenv("GROK_API_KEY", "").strip() or os.getenv("XAI_API_KEY", "").strip()
+    if not key and provider == "deepseek":
+        key = os.getenv("DEEPSEEK_API_KEY", "").strip()
+    base = explicit_base or base
+    model = explicit_model or model
+    return key, base, model
 
 
 config = Config()

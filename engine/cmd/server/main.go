@@ -29,6 +29,7 @@ import (
 	_ "github.com/ariho-code/bastionscan/engine/internal/modules/dns"
 	_ "github.com/ariho-code/bastionscan/engine/internal/modules/exposure"
 	_ "github.com/ariho-code/bastionscan/engine/internal/modules/fingerprint"
+	_ "github.com/ariho-code/bastionscan/engine/internal/modules/graphql"
 	_ "github.com/ariho-code/bastionscan/engine/internal/modules/headers"
 	_ "github.com/ariho-code/bastionscan/engine/internal/modules/inject"
 	_ "github.com/ariho-code/bastionscan/engine/internal/modules/intel"
@@ -40,6 +41,7 @@ import (
 	_ "github.com/ariho-code/bastionscan/engine/internal/modules/sqli"
 	_ "github.com/ariho-code/bastionscan/engine/internal/modules/subdomains"
 	_ "github.com/ariho-code/bastionscan/engine/internal/modules/tls"
+	_ "github.com/ariho-code/bastionscan/engine/internal/modules/vertical"
 	_ "github.com/ariho-code/bastionscan/engine/internal/modules/xss"
 )
 

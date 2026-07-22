@@ -31,6 +31,8 @@ export async function POST(req: NextRequest) {
   let body: {
     target?: string;
     profile?: string;
+    ai?: boolean;
+    tenant?: string;
     scope?: {
       includePaths?: string[];
       excludePaths?: string[];
@@ -40,6 +42,12 @@ export async function POST(req: NextRequest) {
       maxRequests?: number;
       requestDelayMs?: number;
       safeMode?: boolean;
+      vertical?: string;
+      session?: {
+        cookie?: string;
+        authorization?: string;
+        extraHeaders?: Record<string, string>;
+      };
     };
   };
   try {
@@ -71,6 +79,23 @@ export async function POST(req: NextRequest) {
     if (typeof s.requestDelayMs === "number" && s.requestDelayMs >= 0)
       scope.requestDelayMs = Math.min(5000, Math.floor(s.requestDelayMs));
     if (typeof s.safeMode === "boolean") scope.safeMode = s.safeMode;
+    if (typeof s.vertical === "string" && s.vertical.trim()) {
+      scope.vertical = s.vertical.trim().toLowerCase().slice(0, 32);
+    }
+    if (s.session && typeof s.session === "object") {
+      const sess: Record<string, unknown> = {};
+      if (typeof s.session.cookie === "string") sess.cookie = s.session.cookie.slice(0, 8192);
+      if (typeof s.session.authorization === "string")
+        sess.authorization = s.session.authorization.slice(0, 4096);
+      if (s.session.extraHeaders && typeof s.session.extraHeaders === "object") {
+        const eh: Record<string, string> = {};
+        for (const [k, v] of Object.entries(s.session.extraHeaders).slice(0, 12)) {
+          if (typeof v === "string") eh[k.slice(0, 64)] = v.slice(0, 2048);
+        }
+        if (Object.keys(eh).length) sess.extraHeaders = eh;
+      }
+      if (Object.keys(sess).length) scope.session = sess;
+    }
   }
 
   const rl = rateLimit(`deep:${clientIP(req)}`, DEEP_LIMIT, DEEP_WINDOW_MS);
@@ -89,7 +114,14 @@ export async function POST(req: NextRequest) {
     const res = await fetch(`${BRAIN_URL}/v1/assess`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ target, profile, verified: false, scope }),
+      body: JSON.stringify({
+        target,
+        profile,
+        verified: false,
+        scope,
+        ai: body.ai !== false,
+        tenant: typeof body.tenant === "string" ? body.tenant.slice(0, 64) : "default",
+      }),
       signal: controller.signal,
       cache: "no-store",
     });

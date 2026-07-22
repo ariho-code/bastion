@@ -363,6 +363,11 @@ func (c *Client) do(ctx context.Context, method, rawURL, body, ct string) ProbeR
 	// Identify Active probes clearly for owner logs / WAF allow-lists.
 	req.Header.Set("X-Bastionscan-Probe", "active-dast")
 	req.Header.Set("X-Bastionscan-Owner-Verified", "1")
+	for k, vs := range c.Env.SessionHeaders {
+		for _, v := range vs {
+			req.Header.Add(k, v)
+		}
+	}
 	if ct != "" {
 		req.Header.Set("Content-Type", ct)
 	}

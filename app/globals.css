@@ -3928,3 +3928,26 @@ h3 {
 }
 .av-scope-check { display: flex; gap: .55rem; align-items: flex-start; font-size: .85rem; color: #cbd5e1; cursor: pointer; }
 .av-scope-check input { margin-top: .2rem; }
+
+/* AI brain panel + learning feedback */
+.av-ai {
+  margin-bottom: 16px;
+  padding: 16px 18px;
+  border-radius: 14px;
+  border: 1px solid rgba(124, 58, 237, 0.35);
+  background: linear-gradient(135deg, rgba(37, 99, 235, 0.12), rgba(124, 58, 237, 0.1));
+}
+.av-ai-summary { color: var(--text); line-height: 1.55; margin: 0.4rem 0 0.6rem; }
+.av-ai-vert { color: var(--text-2); font-size: 0.9rem; margin: 0 0 0.5rem; }
+.av-ai-list { margin: 0.4rem 0 0.6rem; padding-left: 1.15rem; color: var(--text-2); line-height: 1.55; font-size: 0.9rem; }
+.av-ai-meta { color: var(--text-3); font-size: 0.8rem; margin: 0.4rem 0 0; }
+.av-fb { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.5rem; }
+.av-fb-btn {
+  font-size: 0.72rem; padding: 0.28rem 0.55rem; border-radius: 8px;
+  border: 1px solid rgba(148,163,184,0.3); background: transparent; color: var(--text-2); cursor: pointer;
+}
+.av-fb-btn:hover { border-color: var(--accent); color: var(--text); }
+.av-scope-field select {
+  background: #0b1220; border: 1px solid rgba(148,163,184,.22); border-radius: 10px;
+  color: #e2e8f0; padding: .5rem .7rem; font-size: .85rem;
+}

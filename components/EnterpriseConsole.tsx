@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 interface VerifyRecord {
   domain: string;
@@ -16,9 +16,20 @@ export default function EnterpriseConsole() {
   const [target, setTarget] = useState("");
   const [exclude, setExclude] = useState("/billing\n/admin/production");
   const [disable, setDisable] = useState("");
+  const [vertical, setVertical] = useState("banking");
   const [verify, setVerify] = useState<VerifyRecord | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [history, setHistory] = useState<
+    { id: string; target: string; grade: string; risk_level: string; vertical: string; profile: string }[]
+  >([]);
+
+  useEffect(() => {
+    fetch("/api/history?limit=12")
+      .then((r) => r.json())
+      .then((d) => setHistory(d.scans || []))
+      .catch(() => setHistory([]));
+  }, []);
 
   const getVerify = useCallback(async () => {
     const t = target.trim();
@@ -56,6 +67,7 @@ export default function EnterpriseConsole() {
           JSON.stringify({
             excludePaths: exclude.split(/[\n,]+/).map((s) => s.trim()).filter(Boolean),
             disableModules: disable.split(/[\n,]+/).map((s) => s.trim()).filter(Boolean),
+            vertical,
           })
         );
       } catch {
@@ -95,6 +107,16 @@ export default function EnterpriseConsole() {
       )}
       <div className="ec-scope">
         <label>
+          Industry vertical
+          <select value={vertical} onChange={(e) => setVertical(e.target.value)}>
+            <option value="banking">Banking / fintech</option>
+            <option value="ecommerce">E-commerce</option>
+            <option value="saas">SaaS / B2B</option>
+            <option value="scam">Anti-fraud / scam kit cleanup</option>
+            <option value="general">General</option>
+          </select>
+        </label>
+        <label>
           Exclude paths (one per line)
           <textarea value={exclude} onChange={(e) => setExclude(e.target.value)} rows={3} />
         </label>
@@ -107,6 +129,18 @@ export default function EnterpriseConsole() {
           />
         </label>
       </div>
+      {history.length > 0 && (
+        <div className="ec-hist">
+          <h3>Recent scans (learning history)</h3>
+          <ul>
+            {history.map((h) => (
+              <li key={h.id}>
+                <code>{h.target}</code> · {h.profile} · {h.vertical} · grade {h.grade} · {h.risk_level}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
       <style>{`
         .ec {
           background: rgba(15, 23, 42, 0.7);
@@ -137,10 +171,13 @@ export default function EnterpriseConsole() {
         .ec-hint { margin: 0; font-size: 0.85rem; color: #94a3b8; }
         .ec-scope { display: grid; gap: 0.75rem; margin-top: 1rem; }
         .ec-scope label { display: flex; flex-direction: column; gap: 0.35rem; font-size: 0.85rem; color: #94a3b8; }
-        .ec-scope textarea, .ec-scope input {
+        .ec-scope textarea, .ec-scope input, .ec-scope select {
           background: #0b1220; border: 1px solid rgba(148, 163, 184, 0.25); border-radius: 10px;
           color: #e2e8f0; padding: 0.55rem 0.7rem; font-family: ui-monospace, monospace; font-size: 0.85rem;
         }
+        .ec-hist { margin-top: 1.25rem; }
+        .ec-hist h3 { font-size: 0.95rem; margin: 0 0 0.5rem; }
+        .ec-hist ul { margin: 0; padding-left: 1.1rem; color: #94a3b8; font-size: 0.85rem; line-height: 1.6; }
       `}</style>
     </section>
   );

@@ -35,6 +35,26 @@ type Scope struct {
 	// SafeMode (default true when unset via API) keeps only detection-grade
 	// probes — no multi-credential attempts, no destructive methods.
 	SafeMode *bool `json:"safeMode,omitempty"`
+
+	// Vertical selects industry pack: banking | ecommerce | saas | scam | general.
+	// Active modules use this to prioritize paths and checks for that industry.
+	Vertical string `json:"vertical,omitempty"`
+
+	// Session enables authenticated Active scanning for owners who paste a
+	// browser session cookie / Authorization header from *their* account.
+	// Never logged in full by modules; only used for outbound probes.
+	Session *Session `json:"session,omitempty"`
+}
+
+// Session is an owner-supplied authenticated context for Active DAST.
+// Only accepted when the target is ownership-verified.
+type Session struct {
+	// Cookie is a raw Cookie header value (e.g. "session=abc; csrftoken=…").
+	Cookie string `json:"cookie,omitempty"`
+	// Authorization is a full Authorization header (e.g. "Bearer eyJ…").
+	Authorization string `json:"authorization,omitempty"`
+	// ExtraHeaders are additional request headers (name → value), capped.
+	ExtraHeaders map[string]string `json:"extraHeaders,omitempty"`
 }
 
 // DefaultScope returns enterprise-safe defaults: safe mode on, modest caps.
@@ -74,7 +94,29 @@ func (s Scope) Merge(o Scope) Scope {
 	if o.SafeMode != nil {
 		out.SafeMode = o.SafeMode
 	}
+	if o.Vertical != "" {
+		out.Vertical = strings.ToLower(strings.TrimSpace(o.Vertical))
+	}
+	if o.Session != nil {
+		out.Session = o.Session
+	}
 	return out
+}
+
+// NormalizedVertical returns a known vertical or "general".
+func (s Scope) NormalizedVertical() string {
+	switch strings.ToLower(strings.TrimSpace(s.Vertical)) {
+	case "banking", "bank", "fintech":
+		return "banking"
+	case "ecommerce", "e-commerce", "shop", "retail":
+		return "ecommerce"
+	case "saas", "b2b", "software":
+		return "saas"
+	case "scam", "phishing", "fraud":
+		return "scam"
+	default:
+		return "general"
+	}
 }
 
 // IsSafe reports whether SafeMode is enabled (default true).

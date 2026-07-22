@@ -104,8 +104,28 @@ When a domain publishes the `bastionscan-verify` DNS TXT token, profile
 | `discovery` / `methods` | Attack surface | Content & HTTP method probes |
 
 Enterprise **scope** (`excludePaths`, `includePaths`, `disableModules`,
-`maxRequests`, `safeMode`) constrains every speculative request. The
-`bastionscan` CLI and `/enterprise` console ship installers for macOS/Linux.
+`maxRequests`, `safeMode`, `vertical`, `session`) constrains every speculative
+request. Vertical packs cover banking, ecommerce, SaaS, and scam/fraud surface.
+Authenticated Active scans accept owner-supplied session cookies/Bearer tokens
+**only after DNS ownership verification**. The `bastionscan` CLI, GitHub Actions
+security gate, and `/enterprise` console complete the enterprise loop.
+
+## AI brain & continuous learning
+
+The Python brain is no longer score-only:
+
+1. **Multi-provider LLM** — DeepSeek by default (`DEEPSEEK_API_KEY`,
+   `AI_PROVIDER=deepseek`). Swap to Grok/xAI (`XAI_API_KEY`,
+   `AI_PROVIDER=grok`) or Claude (`ANTHROPIC_API_KEY`, `AI_PROVIDER=claude`)
+   without code changes.
+2. **Insights on every assess** — vertical-aware priorities, FP risk notes.
+3. **Learning store** — JSONL history of scans + operator feedback
+   (true/false positive). Feedback recalibrates soft **finding weights** so
+   noisy checks get dampened and confirmed issues get boosted.
+4. **Offline fallback** — if no API key, rules + learning weights still run.
+
+Env: `AI_PROVIDER`, `DEEPSEEK_API_KEY` / `XAI_API_KEY` / `ANTHROPIC_API_KEY`,
+`BASTION_LEARNING_DIR`, `AI_ON_ASSESS`.
 
 ### Safety by design
 

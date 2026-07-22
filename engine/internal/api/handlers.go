@@ -146,6 +146,11 @@ func (s *Server) handleScan(w http.ResponseWriter, r *http.Request) {
 		target.Verified = verify.Verify(r.Context(), env, s.cfg.VerifySecret, target.Domain)
 	}
 
+	// Authenticated session headers only after ownership is proven.
+	if target.Verified && target.Scope.Session != nil {
+		env.SessionHeaders = sessionHeaders(target.Scope.Session)
+	}
+
 	// Active profile without verification: still run deep modules; Active ones skip.
 	// Surface verification status clearly in the result for the dashboard.
 	result := s.engine.Run(r.Context(), target, profile, env)
@@ -249,6 +254,52 @@ func (s *Server) handleAudit(w http.ResponseWriter, r *http.Request) {
 		"entries":    entries,
 		"exportHint": "Each entry is one JSON object; stream stdout to Splunk/Datadog, or fetch ?format=rfc5424.",
 	})
+}
+
+// sessionHeaders builds request headers from an owner-supplied Session.
+// Caps size so a malicious client can't force megabytes of header data.
+func sessionHeaders(s *scan.Session) http.Header {
+	if s == nil {
+		return nil
+	}
+	h := make(http.Header)
+	if c := strings.TrimSpace(s.Cookie); c != "" {
+		if len(c) > 8192 {
+			c = c[:8192]
+		}
+		h.Set("Cookie", c)
+	}
+	if a := strings.TrimSpace(s.Authorization); a != "" {
+		if len(a) > 4096 {
+			a = a[:4096]
+		}
+		h.Set("Authorization", a)
+	}
+	n := 0
+	for k, v := range s.ExtraHeaders {
+		if n >= 12 {
+			break
+		}
+		k = strings.TrimSpace(k)
+		v = strings.TrimSpace(v)
+		if k == "" || v == "" {
+			continue
+		}
+		// Block hop-by-hop / host override headers.
+		lk := strings.ToLower(k)
+		if lk == "host" || lk == "content-length" || lk == "transfer-encoding" {
+			continue
+		}
+		if len(v) > 2048 {
+			v = v[:2048]
+		}
+		h.Set(k, v)
+		n++
+	}
+	if len(h) == 0 {
+		return nil
+	}
+	return h
 }
 
 func parseScanRequest(r *http.Request) (scanRequest, error) {

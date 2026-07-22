@@ -100,6 +100,18 @@ class ScamVerdict(BaseModel):
     advice: str  # what the user should do
 
 
+class AIInsights(BaseModel):
+    provider: str = "offline"
+    model: str = ""
+    summary: str = ""
+    top_priorities: list[dict[str, Any]] = Field(default_factory=list)
+    vertical_advice: str = ""
+    false_positive_risks: list[str] = Field(default_factory=list)
+    confidence: float = 0.0
+    learning_lessons_used: int = 0
+    source: str = "offline"
+
+
 class RiskAnalysis(BaseModel):
     target: str
     grade: str
@@ -117,6 +129,8 @@ class RiskAnalysis(BaseModel):
     cve_matches: list[CVEMatch]
     remediation: list[RemediationItem]
     scam: ScamVerdict | None = None  # present when the phishing module ran
+    ai: AIInsights | None = None
+    scan_id: str | None = None  # learning store id for feedback loop
     generated_by: str = "bastionscan-brain"
 
 
@@ -124,11 +138,32 @@ class AssessRequest(BaseModel):
     target: str
     profile: str = "standard"
     verified: bool = False
-    # Enterprise Active scope: path exclusions, module allow/deny, rate caps.
-    # Forwarded to the engine only for profile=active (ownership-gated DAST).
+    # Enterprise Active scope: path exclusions, module allow/deny, rate caps,
+    # vertical pack, and optional authenticated session (verified only).
     scope: dict[str, Any] | None = None
+    # Ask the AI brain for vertical-aware insights (default true when configured).
+    ai: bool = True
+    tenant: str = "default"
 
 
 class AssessResponse(BaseModel):
     scan: dict[str, Any]
     analysis: RiskAnalysis
+
+
+class FeedbackRequest(BaseModel):
+    finding_id: str
+    label: str  # true_positive | false_positive | fixed | ignore
+    target: str = ""
+    note: str = ""
+    scan_id: str = ""
+    tenant: str = "default"
+
+
+class InsightRequest(BaseModel):
+    """Re-run AI on an existing analysis payload without re-scanning."""
+
+    target: str = ""
+    vertical: str = "general"
+    analysis: dict[str, Any] = Field(default_factory=dict)
+    findings: list[dict[str, Any]] = Field(default_factory=list)
