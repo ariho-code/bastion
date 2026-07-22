@@ -71,6 +71,7 @@ All via environment variables (with safe defaults):
 | `RATE_LIMIT_RPM_FREE` | `120`   | `free` tier requests/min             |
 | `RATE_LIMIT_RPM_PRO`  | `600`   | `pro` tier requests/min              |
 | `RATE_LIMIT_RPM_AGENCY` | `3000` | `agency` tier requests/min          |
+| `TARGET_COOLDOWN`  | `8s`    | Min interval between scans of the same host |
 
 ## Security & hardening
 
@@ -88,6 +89,9 @@ The engine is built to be exposed publicly and abused-at:
 - **SSRF guard + TOCTOU-safe dialing**, **request IDs** (`X-Request-ID`), and
   **structured JSON access logs** for correlation.
 - `TRUSTED_PROXY` gates `X-Forwarded-For` so rate-limit keys can't be spoofed.
+- **Anti-abuse**: input validation rejects embedded credentials and non-web
+  service ports; a **per-target cooldown** stops the engine being weaponized to
+  flood one victim; every scan emits a structured **audit-trail** log line.
 
 ## Modules
 

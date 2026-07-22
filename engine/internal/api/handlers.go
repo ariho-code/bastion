@@ -2,11 +2,14 @@ package api
 
 import (
 	"encoding/json"
+	"log"
 	"net"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
+	"github.com/ariho-code/bastionscan/engine/internal/abuse"
 	"github.com/ariho-code/bastionscan/engine/internal/scan"
 )
 
@@ -68,9 +71,22 @@ func (s *Server) handleScan(w http.ResponseWriter, r *http.Request) {
 	}
 	target.Verified = req.Verified
 
+	// Abuse validation beyond SSRF safety (embedded creds, non-web ports, …).
+	if err := abuse.Validate(target); err != nil {
+		s.metrics.IncScanError()
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
 	if err := s.guard.Check(r.Context(), target.Host); err != nil {
 		s.metrics.IncScanError()
 		writeError(w, http.StatusForbidden, err.Error())
+		return
+	}
+	// Per-target cooldown: don't let the engine be used to flood one victim.
+	if ok, retryAfter := s.cooldown.Check(target.Host); !ok {
+		w.Header().Set("Retry-After", strconv.Itoa(retryAfter))
+		writeError(w, http.StatusTooManyRequests,
+			"this target was scanned very recently; please wait before scanning it again")
 		return
 	}
 
@@ -83,7 +99,29 @@ func (s *Server) handleScan(w http.ResponseWriter, r *http.Request) {
 	result := s.engine.Run(r.Context(), target, profile, env)
 	s.metrics.IncScan()
 	s.metrics.ObserveScan(float64(result.DurationMs) / 1000.0)
+	s.auditScan(r, target, profile, result)
 	writeJSON(w, http.StatusOK, result)
+}
+
+// auditScan emits a structured audit-trail line for every completed scan —
+// distinct from the access log, and the record you'd keep for compliance.
+func (s *Server) auditScan(r *http.Request, t *scan.Target, p scan.Profile, res *scan.ScanResult) {
+	entry := map[string]any{
+		"level":      "audit",
+		"event":      "scan",
+		"target":     t.Host,
+		"profile":    p.Name,
+		"grade":      res.Grade,
+		"score":      res.Score,
+		"dur_ms":     res.DurationMs,
+		"ip":         s.clientIP(r),
+		"tier":       string(identityFrom(r.Context()).Tier),
+		"request_id": requestIDFrom(r.Context()),
+		"ts":         time.Now().UTC().Format(time.RFC3339),
+	}
+	if b, err := json.Marshal(entry); err == nil {
+		log.Println(string(b))
+	}
 }
 
 func parseScanRequest(r *http.Request) (scanRequest, error) {

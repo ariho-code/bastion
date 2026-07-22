@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/ariho-code/bastionscan/engine/internal/abuse"
 	"github.com/ariho-code/bastionscan/engine/internal/auth"
 	"github.com/ariho-code/bastionscan/engine/internal/config"
 	"github.com/ariho-code/bastionscan/engine/internal/metrics"
@@ -16,17 +17,24 @@ import (
 
 // Server wires together configuration, auth, the SSRF guard, and the engine.
 type Server struct {
-	cfg     config.Config
-	guard   *netutil.Guard
-	engine  *scan.Engine
-	auth    *auth.Authenticator
-	limiter *rateLimiter
-	metrics *metrics.Metrics
-	started time.Time
+	cfg      config.Config
+	guard    *netutil.Guard
+	engine   *scan.Engine
+	auth     *auth.Authenticator
+	limiter  *rateLimiter
+	cooldown *abuse.Cooldown
+	metrics  *metrics.Metrics
+	started  time.Time
 }
 
 // NewServer constructs a Server from configuration.
 func NewServer(cfg config.Config) *Server {
+	// In dev (AllowPrivate) the per-target cooldown is disabled so repeated
+	// local scans aren't throttled.
+	cooldownWindow := cfg.TargetCooldown
+	if cfg.AllowPrivate {
+		cooldownWindow = 0
+	}
 	return &Server{
 		cfg:   cfg,
 		guard: netutil.NewGuard(cfg.AllowPrivate),
@@ -35,10 +43,11 @@ func NewServer(cfg config.Config) *Server {
 			ModuleTimeout:  cfg.ModuleTimeout,
 			ScanTimeout:    cfg.ScanTimeout,
 		}),
-		auth:    auth.New(cfg.APIKeys, cfg.APIRequireKey),
-		limiter: newRateLimiter(),
-		metrics: metrics.New(),
-		started: time.Now(),
+		auth:     auth.New(cfg.APIKeys, cfg.APIRequireKey),
+		limiter:  newRateLimiter(),
+		cooldown: abuse.NewCooldown(cooldownWindow),
+		metrics:  metrics.New(),
+		started:  time.Now(),
 	}
 }
 
