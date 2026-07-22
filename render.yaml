@@ -49,18 +49,13 @@ services:
     healthCheckPath: /health
     autoDeploy: true
     envVars:
-      # Wired automatically to the engine over Render's private network.
-      # `hostport` yields "bastionscan-engine:<port>"; the brain prefixes http://
-      # for host:port values (internal traffic is plain HTTP).
-      #
-      # If the brain ever logs "could not reach scanning engine", override this
-      # in the dashboard with the engine's PUBLIC url instead, e.g.
-      #   ENGINE_URL = https://bastionscan-engine.onrender.com
+      # The brain reaches the engine over its PUBLIC url. Render's private
+      # network (fromService host:port) is NOT available on the free plan, so we
+      # use the deterministic public hostname instead. If you renamed the engine
+      # service, or Render appended a suffix to its URL, update this value to
+      # match the engine's real onrender.com URL.
       - key: ENGINE_URL
-        fromService:
-          type: web
-          name: bastionscan-engine
-          property: hostport
+        value: https://bastionscan-engine.onrender.com
       - key: ENGINE_TIMEOUT
         value: "90"
       - key: ALLOWED_ORIGINS
