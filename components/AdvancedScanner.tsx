@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import UpgradeModal from "./UpgradeModal";
+import { isPro, getQuota, bumpQuota, syncProFromURL, FREE_ADVANCED_LIMIT } from "@/lib/pro";
 
 // --- types (mirror the brain's /v1/assess response) -------------------------
 
@@ -159,7 +161,21 @@ export default function AdvancedScanner() {
   const [error, setError] = useState("");
   const [verify, setVerify] = useState<VerifyRecord | null>(null);
   const [verifyLoading, setVerifyLoading] = useState(false);
+  const [pro, setPro] = useState(false);
+  const [remaining, setRemaining] = useState(FREE_ADVANCED_LIMIT);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [modalReason, setModalReason] = useState<string | undefined>(undefined);
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const refreshEntitlement = useCallback(() => {
+    setPro(isPro());
+    setRemaining(Math.max(0, FREE_ADVANCED_LIMIT - getQuota("advanced")));
+  }, []);
+
+  const openUpgrade = useCallback((reason?: string) => {
+    setModalReason(reason);
+    setModalOpen(true);
+  }, []);
 
   const getVerify = useCallback(async () => {
     const t = target.trim();
@@ -192,6 +208,24 @@ export default function AdvancedScanner() {
       const t = (rawTarget ?? target).trim();
       const p = rawProfile ?? profile;
       if (!t || loading) return;
+
+      // Pro gating (bypassed for Pro / ?pro=1). Active is Pro-only; free users
+      // also get a generous daily allowance of deep scans.
+      if (!isPro()) {
+        if (p === "active") {
+          openUpgrade(
+            "Active scanning — intrusive, ownership-verified checks like HTTP-method probing and content discovery — is a Pro capability."
+          );
+          return;
+        }
+        if (getQuota("advanced") >= FREE_ADVANCED_LIMIT) {
+          openUpgrade(
+            `You've used all ${FREE_ADVANCED_LIMIT} free advanced scans today. Upgrade to Pro for unlimited deep & active scans.`
+          );
+          return;
+        }
+      }
+
       setLoading(true);
       setError("");
       setData(null);
@@ -204,17 +238,21 @@ export default function AdvancedScanner() {
         const json = await res.json();
         if (!res.ok) throw new Error(json?.error || "Scan failed.");
         setData(json as AssessResponse);
+        bumpQuota("advanced");
+        refreshEntitlement();
       } catch (e) {
         setError(e instanceof Error ? e.message : "Scan failed.");
       } finally {
         setLoading(false);
       }
     },
-    [target, profile, loading]
+    [target, profile, loading, openUpgrade, refreshEntitlement]
   );
 
   // Deep-linkable scans: /advanced?target=example.com&profile=deep auto-runs.
   useEffect(() => {
+    syncProFromURL();
+    refreshEntitlement();
     const params = new URLSearchParams(window.location.search);
     const t = params.get("target");
     if (!t) return;
@@ -256,6 +294,7 @@ export default function AdvancedScanner() {
               onClick={() => setProfile(p)}
             >
               {p === "standard" ? "Standard" : p === "deep" ? "Deep" : "Active"}
+              {p === "active" && !pro && <span className="av-pro-tag">PRO</span>}
             </button>
           ))}
         </div>
@@ -264,7 +303,36 @@ export default function AdvancedScanner() {
         </button>
       </form>
 
-      {profile === "active" && (
+      {!pro && (
+        <div className="av-quota">
+          <span>
+            {remaining > 0
+              ? `${remaining} of ${FREE_ADVANCED_LIMIT} free advanced scans left today`
+              : "You've used your free advanced scans for today"}
+          </span>
+          <button type="button" className="av-quota-link" onClick={() => openUpgrade(undefined)}>
+            Go Pro — unlimited + active scans
+          </button>
+        </div>
+      )}
+
+      {profile === "active" && !pro && (
+        <div className="av-pro-note">
+          <div className="av-pro-note-body">
+            <span className="av-pro-note-badge">★ PRO</span>
+            <div>
+              <strong>Active scanning is a Pro capability.</strong> It runs intrusive,
+              ownership-verified checks — HTTP-method probing, content discovery and more — against
+              domains you control.
+            </div>
+          </div>
+          <button type="button" className="av-pro-btn" onClick={() => openUpgrade("Unlock active scanning with Pro.")}>
+            Unlock Pro
+          </button>
+        </div>
+      )}
+
+      {profile === "active" && pro && (
         <div className="av-verify">
           <p className="av-verify-lede">
             <strong>Active scans are ownership-gated.</strong> They run intrusive checks (HTTP method
@@ -304,6 +372,8 @@ export default function AdvancedScanner() {
       {error && !data && <div className="av-error">{error}</div>}
 
       {data && !loading && <Report data={data} />}
+
+      <UpgradeModal open={modalOpen} onClose={() => setModalOpen(false)} plan="Pro" reason={modalReason} />
     </div>
   );
 }

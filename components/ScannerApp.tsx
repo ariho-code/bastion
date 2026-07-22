@@ -11,9 +11,9 @@ import MonitorCard from "./MonitorCard";
 import Icon from "./Icon";
 import ScanVisualizer from "./ScanVisualizer";
 import { useI18n } from "./LanguageProvider";
+import { FREE_SCAN_LIMIT, isPro, getQuota, bumpQuota, syncProFromURL } from "@/lib/pro";
 
 const EXAMPLES = ["github.com", "stripe.com", "wikipedia.org"];
-const FREE_SCAN_LIMIT = 20; // generous free tier; heavy users are nudged to Pro
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 const CATEGORY_BLURB: Record<Category, string> = {
@@ -37,33 +37,6 @@ function gradeColor(grade: string): string {
   return (
     { A: "#22c55e", B: "#84cc16", C: "#eab308", D: "#f97316", F: "#ef4444" }[grade] || "#94a3b8"
   );
-}
-
-function todayKey(): string {
-  return new Date().toISOString().slice(0, 10);
-}
-function getQuota(): number {
-  try {
-    const raw = JSON.parse(localStorage.getItem("bastion:quota") || "{}");
-    return raw.day === todayKey() ? raw.count || 0 : 0;
-  } catch {
-    return 0;
-  }
-}
-function bumpQuota(): void {
-  try {
-    const count = getQuota() + 1;
-    localStorage.setItem("bastion:quota", JSON.stringify({ day: todayKey(), count }));
-  } catch {
-    /* noop */
-  }
-}
-function isPro(): boolean {
-  try {
-    return localStorage.getItem("bastion:pro") === "1";
-  } catch {
-    return false;
-  }
 }
 
 interface HistoryItem {
@@ -102,14 +75,8 @@ export default function ScannerApp() {
 
   // Deep-link: ?url=example.com auto-runs a scan; ?pro=1 unlocks unlimited (for testing)
   useEffect(() => {
+    syncProFromURL();
     const params = new URLSearchParams(window.location.search);
-    if (params.get("pro") === "1") {
-      try {
-        localStorage.setItem("bastion:pro", "1");
-      } catch {
-        /* noop */
-      }
-    }
     const q = params.get("url");
     if (q) {
       setUrl(q);
@@ -147,7 +114,7 @@ export default function ScannerApp() {
       if (!t || loading) return;
 
       // Free-tier gate (bypassed in Pro / ?pro=1 test mode).
-      if (!isPro() && getQuota() >= FREE_SCAN_LIMIT) {
+      if (!isPro() && getQuota("scan") >= FREE_SCAN_LIMIT) {
         setModalReason(
           `You've used all ${FREE_SCAN_LIMIT} free scans today. Upgrade to Pro for unlimited scans and monitoring.`
         );
@@ -171,7 +138,7 @@ export default function ScannerApp() {
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || "Scan failed. Please try again.");
         setResult(data as ScanResult);
-        bumpQuota();
+        bumpQuota("scan");
         saveHistory(data as ScanResult);
         setTimeout(() => resultRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
       } catch (e: any) {
