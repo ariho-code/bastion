@@ -21,7 +21,7 @@ async def scan(target: str, profile: str, verified: bool) -> dict[str, Any]:
     """Run a scan on the engine and return its raw JSON result."""
     payload = {"target": target, "profile": profile, "verified": verified}
     try:
-        async with httpx.AsyncClient(timeout=config.engine_timeout) as client:
+        async with httpx.AsyncClient(timeout=config.engine_timeout, follow_redirects=True) as client:
             resp = await client.post(f"{config.engine_url}/v1/scan", json=payload)
     except httpx.HTTPError as exc:
         raise EngineError(f"could not reach scanning engine: {exc}") from exc
@@ -33,7 +33,7 @@ async def scan(target: str, profile: str, verified: bool) -> dict[str, Any]:
 
 
 async def health() -> dict[str, Any]:
-    async with httpx.AsyncClient(timeout=10) as client:
+    async with httpx.AsyncClient(timeout=10, follow_redirects=True) as client:
         resp = await client.get(f"{config.engine_url}/health")
         resp.raise_for_status()
         return resp.json()

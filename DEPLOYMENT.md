@@ -76,7 +76,7 @@ Set these on the **engine** service in Render → Settings → Environment:
 | `API_KEYS` | `bk_live_xxx:pro,bk_live_yyy:agency` | Require keys for API access |
 | `API_REQUIRE_KEY` | `true` | Reject anonymous API calls |
 | `RATE_LIMIT_RPM` | `60` | Per-client request cap |
-| `TRUSTED_PROXY` | `true` | Honor Render's `X-Forwarded-For` for real client IPs |
+| `TRUSTED_PROXY` | `true` | Honor Render's `  X-Forwarded-For` for real client IPs |
 
 On the **brain**: set `ALLOWED_ORIGINS` to your domain too.
 
@@ -85,6 +85,26 @@ On the **brain**: set `ALLOWED_ORIGINS` to your domain too.
 Render → service → **Settings → Custom Domains** → add `api.yourdomain.com`
 (engine) and `brain.yourdomain.com`. Then point `BASTION_BRAIN_URL` at the
 brain's custom domain.
+
+---
+
+## Troubleshooting
+
+**"could not reach scanning engine: Name or service not known"** — the brain
+can't resolve the engine. The blueprint wires `ENGINE_URL` to the engine over
+Render's private network (`bastionscan-engine:<port>`). If that doesn't resolve
+in your setup, override it on the **brain** service in Render → Settings →
+Environment:
+
+```
+ENGINE_URL = https://bastionscan-engine.onrender.com   # the engine's PUBLIC url
+```
+
+Then **Manual Deploy → Clear build cache & deploy** the brain. Confirm with
+`curl https://bastionscan-brain.onrender.com/health` → `"engine_reachable":true`.
+
+**Scan times out on first use** — free instances were asleep; the first request
+wakes them (~30–60s). Retry, or upgrade to a paid instance for always-on.
 
 ---
 

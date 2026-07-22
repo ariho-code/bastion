@@ -6,11 +6,18 @@ import os
 
 
 def _normalize_url(value: str) -> str:
-    """Accept a full URL or a bare host (as Render's fromService provides) and
-    return a usable base URL."""
+    """Accept a full URL or a bare host/host:port (as Render's fromService
+    provides) and return a usable base URL.
+
+    A value carrying an explicit port (e.g. ``bastionscan-engine:10000``) is
+    Render internal service networking, which speaks plain HTTP. A bare hostname
+    with no port (e.g. ``api.example.com``) is treated as a public HTTPS host.
+    """
     value = value.strip()
     if not value.startswith(("http://", "https://")):
-        value = "https://" + value
+        host_only = value.split("/", 1)[0]
+        scheme = "http://" if ":" in host_only else "https://"
+        value = scheme + value
     return value.rstrip("/")
 
 
