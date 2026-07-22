@@ -21,6 +21,7 @@ export default function Nav() {
           <Link href="/docs">
             <T k="nav.api" />
           </Link>
+          <Link href="/advanced">Advanced</Link>
           <a href="/#faq">
             <T k="nav.faq" />
           </a>
