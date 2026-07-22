@@ -7,6 +7,7 @@ import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
 import CookieConsent from "@/components/CookieConsent";
 import JsonLd from "@/components/JsonLd";
+import LanguageProvider from "@/components/LanguageProvider";
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
@@ -59,10 +60,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body>
         <JsonLd />
-        <Nav />
-        {children}
-        <Footer />
-        <CookieConsent />
+        <LanguageProvider>
+          <Nav />
+          {children}
+          <Footer />
+          <CookieConsent />
+        </LanguageProvider>
         <Analytics />
         <SpeedInsights />
       </body>

@@ -1,11 +1,16 @@
 import { FAQS } from "@/lib/faqs";
+import T from "@/components/T";
 
 export default function Faq() {
   return (
     <section id="faq" className="faq">
       <div className="section-head">
-        <span className="eyebrow">FAQ</span>
-        <h2>Questions, answered</h2>
+        <span className="eyebrow">
+          <T k="faq.eyebrow" />
+        </span>
+        <h2>
+          <T k="faq.title" />
+        </h2>
       </div>
       <div className="faq-list">
         {FAQS.map((f, i) => (

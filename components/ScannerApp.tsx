@@ -9,6 +9,7 @@ import CategoryChart from "./CategoryChart";
 import UpgradeModal from "./UpgradeModal";
 import MonitorCard from "./MonitorCard";
 import Icon from "./Icon";
+import { useI18n } from "./LanguageProvider";
 
 const EXAMPLES = ["github.com", "stripe.com", "wikipedia.org"];
 const FREE_SCAN_LIMIT = 20; // generous free tier; heavy users are nudged to Pro
@@ -86,6 +87,7 @@ export default function ScannerApp() {
   const [emailState, setEmailState] = useState<"idle" | "loading" | "done" | "error">("idle");
   const [emailMsg, setEmailMsg] = useState("");
   const resultRef = useRef<HTMLDivElement>(null);
+  const { t } = useI18n();
 
   // Load history
   useEffect(() => {
@@ -257,7 +259,7 @@ export default function ScannerApp() {
             className="scan-input"
             type="text"
             inputMode="url"
-            placeholder="Enter a website, e.g. yourcompany.com"
+            placeholder={t("scan.placeholder")}
             value={url}
             onChange={(e) => setUrl(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && runScan()}
@@ -267,12 +269,12 @@ export default function ScannerApp() {
             aria-label="Website URL to scan"
           />
           <button className="scan-btn" onClick={() => runScan()} disabled={loading}>
-            {loading ? <span className="spinner" /> : "Scan now"}
+            {loading ? <span className="spinner" /> : t("scan.button")}
           </button>
         </div>
 
         <div className="examples">
-          <span className="examples-label">Try one:</span>
+          <span className="examples-label">{t("scan.tryOne")}</span>
           {EXAMPLES.map((ex) => (
             <button key={ex} className="example-chip" onClick={() => runScan(ex)} disabled={loading}>
               {ex}
@@ -282,7 +284,7 @@ export default function ScannerApp() {
 
         {!result && !loading && history.length > 0 && (
           <div className="history">
-            <span className="history-label">Recent</span>
+            <span className="history-label">{t("scan.recent")}</span>
             {history.map((h) => (
               <button key={h.host} className="history-chip" onClick={() => runScan(h.host)}>
                 <span className="history-grade" style={{ color: gradeColor(h.grade) }}>

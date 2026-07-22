@@ -848,6 +848,38 @@ h3 {
   border-color: var(--accent);
 }
 
+/* ---------------- Language switcher ---------------- */
+.lang-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--text-2);
+  cursor: pointer;
+}
+.lang-switch svg {
+  color: var(--text-3);
+  flex-shrink: 0;
+}
+.lang-switch select {
+  background: transparent;
+  border: none;
+  color: var(--text-2);
+  font-size: 14px;
+  font-family: var(--sans);
+  cursor: pointer;
+  outline: none;
+  padding: 2px 0;
+}
+.lang-switch select option {
+  background: var(--bg-2);
+  color: var(--text);
+}
+.lang-switch:hover,
+.lang-switch:hover svg,
+.lang-switch:hover select {
+  color: var(--text);
+}
+
 .steps {
   display: grid;
   grid-template-columns: repeat(3, 1fr);

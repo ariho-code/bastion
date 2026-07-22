@@ -4,6 +4,7 @@ import ScannerApp from "@/components/ScannerApp";
 import Pricing from "@/components/Pricing";
 import Faq from "@/components/Faq";
 import Icon, { type IconName } from "@/components/Icon";
+import T from "@/components/T";
 import { brand } from "@/lib/brand";
 
 const CAPABILITIES: { icon: IconName; title: string; body: string; href?: string }[] = [
@@ -122,24 +123,32 @@ export default function Page() {
         <div className="hero-glow" aria-hidden="true" />
         <div className="hero-inner">
           <div className="badge">
-            <span className="badge-dot" /> Trusted, non-invasive security scanning
+            <span className="badge-dot" /> <T k="hero.badge" />
           </div>
           <h1>
-            Is your website <span className="grad">actually secure?</span>
+            <T k="hero.title1" />{" "}
+            <span className="grad">
+              <T k="hero.accent" />
+            </span>
             <br />
-            Find out in seconds.
+            <T k="hero.title2" />
           </h1>
           <p className="hero-sub">
-            {brand.name} grades any site A–F across TLS, security headers, DNS and cookies — then hands
-            you the exact fixes. Free, instant, and safe to run on any website you own.
+            <T k="hero.sub" />
           </p>
           <ScannerApp />
           <div className="hero-trust">
-            <span>28 deep security checks</span>
+            <span>
+              <T k="hero.trust1" />
+            </span>
             <span className="sep" />
-            <span>No login required</span>
+            <span>
+              <T k="hero.trust2" />
+            </span>
             <span className="sep" />
-            <span>Fixes for every issue</span>
+            <span>
+              <T k="hero.trust3" />
+            </span>
           </div>
         </div>
       </section>
@@ -147,8 +156,12 @@ export default function Page() {
       {/* How it works */}
       <section id="how" className="how">
         <div className="section-head">
-          <span className="eyebrow">How it works</span>
-          <h2>From URL to fixed in three steps</h2>
+          <span className="eyebrow">
+            <T k="how.eyebrow" />
+          </span>
+          <h2>
+            <T k="how.title" />
+          </h2>
         </div>
         <div className="steps">
           {STEPS.map((s) => (
@@ -164,11 +177,14 @@ export default function Page() {
       {/* Features */}
       <section id="features" className="features">
         <div className="section-head">
-          <span className="eyebrow">What we check</span>
-          <h2>A complete picture of your security posture</h2>
+          <span className="eyebrow">
+            <T k="feat.eyebrow" />
+          </span>
+          <h2>
+            <T k="feat.title" />
+          </h2>
           <p>
-            Most tools stop at a couple of headers. {brand.name} looks across five categories that
-            actually determine whether your site can be attacked.
+            <T k="feat.sub" />
           </p>
         </div>
         <div className="feature-grid">
@@ -187,11 +203,14 @@ export default function Page() {
       {/* Capabilities — what the product does */}
       <section id="platform" className="capabilities">
         <div className="section-head">
-          <span className="eyebrow">The platform</span>
-          <h2>Not just a scan — a security workflow</h2>
+          <span className="eyebrow">
+            <T k="plat.eyebrow" />
+          </span>
+          <h2>
+            <T k="plat.title" />
+          </h2>
           <p>
-            From a one-off check to continuous, automated protection across your whole portfolio —
-            with reports your clients will actually read.
+            <T k="plat.sub" />
           </p>
         </div>
         <div className="feature-grid">
@@ -225,10 +244,14 @@ export default function Page() {
       {/* Final CTA */}
       <section className="final-cta">
         <div className="final-inner">
-          <h2>Scan your site now — it&apos;s free</h2>
-          <p>See your grade in seconds and get the fixes to reach an A.</p>
+          <h2>
+            <T k="final.title" />
+          </h2>
+          <p>
+            <T k="final.sub" />
+          </p>
           <a href="#scan" className="final-btn">
-            Run a free scan →
+            <T k="final.btn" /> →
           </a>
         </div>
       </section>

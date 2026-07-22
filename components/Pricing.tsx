@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import UpgradeModal from "./UpgradeModal";
+import T from "./T";
 
 interface Tier {
   name: string;
@@ -80,9 +81,15 @@ export default function Pricing() {
   return (
     <section id="pricing" className="pricing">
       <div className="section-head">
-        <span className="eyebrow">Pricing</span>
-        <h2>Fair pricing that scales with you</h2>
-        <p>Start free forever — no account, no card. Upgrade only when you need monitoring or scale.</p>
+        <span className="eyebrow">
+          <T k="price.eyebrow" />
+        </span>
+        <h2>
+          <T k="price.title" />
+        </h2>
+        <p>
+          <T k="price.sub" />
+        </p>
       </div>
 
       <div className="toggle" role="group" aria-label="Billing period">
