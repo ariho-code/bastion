@@ -1577,6 +1577,14 @@ h3 {
   color: #fca5a5;
   font-size: 13.5px;
 }
+.monitor-capture {
+  margin-top: 12px;
+  background: linear-gradient(135deg, rgba(34, 211, 238, 0.07), rgba(45, 212, 191, 0.03));
+  border-color: rgba(34, 211, 238, 0.22);
+}
+.monitor-capture .email-capture-title svg {
+  color: var(--accent-2);
+}
 
 /* ---------------- Upgrade modal ---------------- */
 .modal-overlay {

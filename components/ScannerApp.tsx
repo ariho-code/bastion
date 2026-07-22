@@ -7,6 +7,7 @@ import { downloadReport } from "@/lib/pdf";
 import ScoreRing from "./ScoreRing";
 import CategoryChart from "./CategoryChart";
 import UpgradeModal from "./UpgradeModal";
+import MonitorCard from "./MonitorCard";
 import Icon from "./Icon";
 
 const EXAMPLES = ["github.com", "stripe.com", "wikipedia.org"];
@@ -403,6 +404,9 @@ export default function ScannerApp() {
               {emailMsg}
             </div>
           )}
+
+          {/* Automated monitoring */}
+          <MonitorCard host={result.host} />
 
           {/* Findings */}
           <div className="findings">

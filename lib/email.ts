@@ -114,3 +114,66 @@ export async function sendWaitlistEmail(email: string, plan: string, note?: stri
       /* confirmation is best-effort */
     });
 }
+
+/** Confirm a new monitoring subscription. */
+export async function sendMonitorConfirm(
+  to: string,
+  host: string,
+  unsubscribeUrl: string
+): Promise<void> {
+  const t = getTransport();
+  const cfg = getConfig();
+  if (!t || !cfg) throw new Error("Email is not configured.");
+  await t.sendMail({
+    from: `"${brand.name} Monitoring" <${cfg.user}>`,
+    to,
+    replyTo: brand.contactEmail,
+    subject: `Monitoring enabled for ${host}`,
+    text: `${brand.name} is now monitoring ${host} daily and will email you the moment its security grade drops.\n\nUnsubscribe: ${unsubscribeUrl}`,
+    html: `<div style="font-family:Helvetica,Arial,sans-serif;max-width:520px;margin:auto;padding:28px;color:#0f172a;">
+      <div style="font:700 20px/1 Helvetica;"><span style="color:#2dd4bf;">&#9672;</span> ${brand.name}</div>
+      <h2 style="margin:18px 0 8px;font-size:20px;">Monitoring is on &#9989;</h2>
+      <p style="color:#475569;font-size:15px;line-height:1.6;">We'll re-scan <strong>${host}</strong> every day and email you the moment its security grade drops — so you never get caught out by a silent regression.</p>
+      <p style="font-size:12px;color:#94a3b8;margin-top:20px;">Not you, or changed your mind? <a href="${unsubscribeUrl}" style="color:#0ea5e9;">Unsubscribe</a>.</p>
+    </div>`,
+  });
+}
+
+/** Alert a subscriber that a monitored site's grade dropped. */
+export async function sendMonitorAlert(
+  to: string,
+  result: ScanResult,
+  prevGrade: string,
+  unsubscribeUrl: string
+): Promise<void> {
+  const t = getTransport();
+  const cfg = getConfig();
+  if (!t || !cfg) throw new Error("Email is not configured.");
+
+  const attachments: { filename: string; content: Buffer; contentType: string }[] = [];
+  try {
+    const pdf = await renderReportPdfBuffer(result);
+    attachments.push({
+      filename: `${brand.name}-report-${result.host}.pdf`,
+      content: pdf,
+      contentType: "application/pdf",
+    });
+  } catch {
+    /* still send the HTML alert */
+  }
+
+  const html = renderReportEmailHtml(result).replace(
+    "</body>",
+    `<div style="text-align:center;padding:14px;font:12px Helvetica,Arial,sans-serif;color:#94a3b8;"><a href="${unsubscribeUrl}" style="color:#94a3b8;">Unsubscribe from monitoring</a></div></body>`
+  );
+
+  await t.sendMail({
+    from: `"${brand.name} Monitoring" <${cfg.user}>`,
+    to,
+    replyTo: brand.contactEmail,
+    subject: `⚠️ ${result.host} dropped to ${result.grade} (was ${prevGrade})`,
+    text: `Heads up — ${result.host} dropped from ${prevGrade} to ${result.grade} (${result.score}/100). The full report is attached.\n\nUnsubscribe: ${unsubscribeUrl}`,
+    html,
+    attachments,
+  });
+}
