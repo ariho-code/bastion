@@ -48,6 +48,8 @@ interface CVEMatch {
   severity: Severity;
   cves: string[];
   summary: string;
+  source?: string; // "curated" or "osv" (live feed)
+  url?: string; // advisory link (OSV)
 }
 
 interface Analysis {
@@ -321,6 +323,10 @@ function Report({ data }: { data: AssessResponse }) {
     () => scan.findings.filter((f) => f.category === "intel"),
     [scan.findings]
   );
+  const content = useMemo(
+    () => scan.findings.filter((f) => f.category === "content"),
+    [scan.findings]
+  );
   const ranModules = scan.modules.filter((m) => !m.skipped);
 
   return (
@@ -365,7 +371,14 @@ function Report({ data }: { data: AssessResponse }) {
       {/* known vulnerabilities (CVE correlation) */}
       {analysis.cve_matches.length > 0 && (
         <section className="av-card">
-          <h4 className="av-card-title">Known vulnerabilities</h4>
+          <h4 className="av-card-title">
+            Known vulnerabilities
+            {analysis.cve_matches.some((m) => m.source === "osv") && (
+              <span className="av-livefeed" title="Enriched with the live OSV.dev advisory feed">
+                ● live feed
+              </span>
+            )}
+          </h4>
           <div className="av-cve-list">
             {analysis.cve_matches.map((m, i) => (
               <div className="av-cve-item" key={i}>
@@ -381,14 +394,27 @@ function Report({ data }: { data: AssessResponse }) {
                       {m.product} {m.version}
                     </strong>
                     <span className="av-cve-fix">→ upgrade to {m.fixed_in}+</span>
+                    {m.source === "osv" && <span className="av-live">LIVE</span>}
                   </div>
                   <p className="av-cve-detail">{m.summary}</p>
                   <div className="av-cve-ids">
-                    {m.cves.map((c) => (
-                      <span className="av-cve-id" key={c}>
-                        {c}
-                      </span>
-                    ))}
+                    {m.cves.map((c) =>
+                      m.url ? (
+                        <a
+                          className="av-cve-id av-cve-link"
+                          href={m.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          key={c}
+                        >
+                          {c} ↗
+                        </a>
+                      ) : (
+                        <span className="av-cve-id" key={c}>
+                          {c}
+                        </span>
+                      )
+                    )}
                   </div>
                 </div>
               </div>
@@ -446,12 +472,18 @@ function Report({ data }: { data: AssessResponse }) {
         </section>
       )}
 
-      {/* signals: attack surface + threat intel */}
+      {/* signals: attack surface + content integrity + threat intel */}
       <div className="av-grid">
         {surface.length > 0 && (
           <section className="av-card">
             <h4 className="av-card-title">Attack surface</h4>
             <SignalList findings={surface} />
+          </section>
+        )}
+        {content.length > 0 && (
+          <section className="av-card">
+            <h4 className="av-card-title">Content integrity</h4>
+            <SignalList findings={content} />
           </section>
         )}
         {intel.length > 0 && (

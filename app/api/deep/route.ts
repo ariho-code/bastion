@@ -21,7 +21,11 @@ function clientIP(req: NextRequest): string {
 // services to Render. Falls back to localhost for development.
 const BRAIN_URL = (process.env.BASTION_BRAIN_URL || "http://localhost:8090").replace(/\/$/, "");
 
-const PROFILES = new Set(["standard", "deep"]);
+// The engine is authoritative for the Active tier: it confirms domain ownership
+// via a DNS TXT token itself, so we can safely forward "active" without trusting
+// any client flag. Unverified active scans simply skip the ownership-gated
+// modules (surfaced in the UI), rather than being silently downgraded.
+const PROFILES = new Set(["standard", "deep", "active"]);
 
 export async function POST(req: NextRequest) {
   let body: { target?: string; profile?: string };
