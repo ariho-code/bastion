@@ -95,7 +95,7 @@ const STEPS = [
   {
     n: "2",
     title: "We inspect it live",
-    body: "Bastion checks 20+ security signals across headers, TLS, DNS and cookies in seconds — reading only public data.",
+    body: "Bastion runs 28 deep checks across TLS (forward secrecy, OCSP), headers, DNSSEC & email auth in seconds — reading only public data.",
   },
   {
     n: "3",
@@ -125,7 +125,7 @@ export default function Page() {
           </p>
           <ScannerApp />
           <div className="hero-trust">
-            <span>20+ security checks</span>
+            <span>28 deep security checks</span>
             <span className="sep" />
             <span>No login required</span>
             <span className="sep" />

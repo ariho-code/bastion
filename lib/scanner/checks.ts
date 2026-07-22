@@ -1,4 +1,4 @@
-import type { Finding, TlsInfo, DnsInfo } from "./types";
+import type { Finding, TlsInfo, DnsInfo, MixedContent } from "./types";
 
 const H = (headers: Headers, name: string) => headers.get(name) ?? "";
 
@@ -208,16 +208,27 @@ export function checkCsp(headers: Headers): Finding {
   const csp = H(headers, "content-security-policy");
   if (csp) {
     const unsafe = /'unsafe-inline'|'unsafe-eval'/i.test(csp);
+    const wildcard = /\b(?:default|script)-src\b[^;]*(?:\s|;|^)\*(?:\s|;|$)/i.test(csp);
+    const noObjectSrc =
+      !/object-src/i.test(csp) && !/default-src\s+[^;]*'none'/i.test(csp);
+    const weak = unsafe || wildcard;
+    const issues: string[] = [];
+    if (unsafe) issues.push("allows 'unsafe-inline'/'unsafe-eval'");
+    if (wildcard) issues.push("uses a wildcard (*) source");
+    if (noObjectSrc) issues.push("no object-src 'none'");
     return {
       id: "csp",
       category: "headers",
-      title: unsafe ? "CSP set (uses unsafe directives)" : "Content-Security-Policy set",
-      status: unsafe ? "warn" : "pass",
-      points: unsafe ? 11 : 15,
+      title: weak ? "CSP set (weakened directives)" : "Content-Security-Policy set",
+      status: weak ? "warn" : "pass",
+      points: weak ? 11 : 15,
       maxPoints: 15,
       severity: "high",
-      detail: unsafe
-        ? "A CSP is present but allows 'unsafe-inline' or 'unsafe-eval', which weakens its protection against XSS. Tighten it with nonces or hashes."
+      evidence: issues.length ? issues.join("; ") : undefined,
+      detail: weak
+        ? `A CSP is present but it ${issues.join(
+            ", "
+          )}, which weakens its protection against XSS. Tighten it with nonces/hashes and explicit source lists.`
         : "A Content-Security-Policy is in place — the strongest defense against cross-site scripting (XSS) and injection.",
     };
   }
@@ -588,6 +599,343 @@ export function checkSecurityTxt(found: boolean): Finding {
         detail: "No /.well-known/security.txt. Publishing one gives security researchers a standard contact for responsible disclosure.",
         fix: `# Serve this at https://yourdomain.com/.well-known/security.txt\nContact: mailto:security@yourdomain.com\nExpires: 2027-01-01T00:00:00.000Z\nPreferred-Languages: en`,
       };
+}
+
+// ---------- Advanced Transport (TLS depth) ----------
+
+export function checkForwardSecrecy(tls: TlsInfo | null): Finding {
+  if (!tls || !tls.cipher) {
+    return {
+      id: "forward-secrecy",
+      category: "transport",
+      title: "Cipher suite not inspected",
+      status: "info",
+      points: 0,
+      maxPoints: 0,
+      severity: "info",
+      detail: "We couldn't read the negotiated cipher suite.",
+    };
+  }
+  return tls.forwardSecrecy
+    ? {
+        id: "forward-secrecy",
+        category: "transport",
+        title: "Forward secrecy enabled",
+        status: "pass",
+        points: 5,
+        maxPoints: 5,
+        severity: "medium",
+        evidence: tls.cipher,
+        detail:
+          "The connection uses an (EC)DHE key exchange, so past traffic stays private even if the server's key is later compromised.",
+      }
+    : {
+        id: "forward-secrecy",
+        category: "transport",
+        title: "No forward secrecy",
+        status: "fail",
+        points: 0,
+        maxPoints: 5,
+        severity: "medium",
+        evidence: tls.cipher,
+        detail:
+          "The negotiated cipher does not provide forward secrecy. If the private key is ever exposed, previously recorded traffic can be decrypted.",
+        fix: `# nginx — prefer ECDHE suites (and enable TLS 1.3)\nssl_protocols TLSv1.2 TLSv1.3;\nssl_ciphers ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256;\nssl_prefer_server_ciphers off;`,
+      };
+}
+
+export function checkKeyStrength(tls: TlsInfo | null): Finding {
+  if (!tls || !tls.keyType) {
+    return {
+      id: "key-strength",
+      category: "transport",
+      title: "Key strength not inspected",
+      status: "info",
+      points: 0,
+      maxPoints: 0,
+      severity: "info",
+      detail: "We couldn't determine the certificate's public-key type.",
+    };
+  }
+  const weakRsa = tls.keyType === "RSA" && (tls.keyBits ?? 0) < 2048;
+  return weakRsa
+    ? {
+        id: "key-strength",
+        category: "transport",
+        title: `Weak certificate key (RSA ${tls.keyBits})`,
+        status: "fail",
+        points: 0,
+        maxPoints: 4,
+        severity: "high",
+        detail:
+          "The certificate uses an RSA key shorter than 2048 bits, which is considered breakable. Reissue with a 2048-bit (or stronger) RSA or an ECDSA P-256 key.",
+        fix: "Reissue the certificate with at least RSA-2048 or ECDSA P-256.",
+      }
+    : {
+        id: "key-strength",
+        category: "transport",
+        title: `Strong certificate key (${tls.keyType}${tls.keyBits ? ` ${tls.keyBits}` : ""})`,
+        status: "pass",
+        points: 4,
+        maxPoints: 4,
+        severity: "info",
+        detail:
+          tls.keyType === "EC"
+            ? "The certificate uses a modern elliptic-curve key — compact and strong."
+            : "The certificate uses an RSA key of 2048 bits or more.",
+      };
+}
+
+export function checkOcsp(tls: TlsInfo | null): Finding {
+  if (!tls) {
+    return {
+      id: "ocsp",
+      category: "transport",
+      title: "OCSP stapling not inspected",
+      status: "info",
+      points: 0,
+      maxPoints: 0,
+      severity: "info",
+      detail: "We couldn't complete a TLS handshake to check OCSP stapling.",
+    };
+  }
+  return tls.ocspStapled
+    ? {
+        id: "ocsp",
+        category: "transport",
+        title: "OCSP stapling enabled",
+        status: "pass",
+        points: 4,
+        maxPoints: 4,
+        severity: "low",
+        detail:
+          "The server staples a signed OCSP response, so browsers can verify the certificate isn't revoked without a slow, privacy-leaking call to the CA.",
+      }
+    : {
+        id: "ocsp",
+        category: "transport",
+        title: "OCSP stapling not enabled",
+        status: "warn",
+        points: 0,
+        maxPoints: 4,
+        severity: "low",
+        detail:
+          "The server does not staple OCSP. Enabling it speeds up the handshake and improves privacy for revocation checks.",
+        fix: `# nginx\nssl_stapling on;\nssl_stapling_verify on;\nresolver 1.1.1.1 8.8.8.8 valid=300s;`,
+      };
+}
+
+// ---------- Advanced DNS & Email ----------
+
+export function checkDnssec(dnssec: boolean): Finding {
+  return dnssec
+    ? {
+        id: "dnssec",
+        category: "dns",
+        title: "DNSSEC enabled",
+        status: "pass",
+        points: 6,
+        maxPoints: 6,
+        severity: "medium",
+        detail:
+          "DNS responses are cryptographically signed (validated AD flag), protecting visitors from DNS spoofing and cache-poisoning.",
+      }
+    : {
+        id: "dnssec",
+        category: "dns",
+        title: "DNSSEC not enabled",
+        status: "warn",
+        points: 0,
+        maxPoints: 6,
+        severity: "medium",
+        detail:
+          "Your DNS zone isn't signed with DNSSEC. Without it, attackers who can tamper with DNS can silently redirect your visitors.",
+        fix: "Enable DNSSEC in your DNS provider / registrar (often a one-click toggle), then add the DS record at your registrar.",
+      };
+}
+
+export function checkMtaSts(mtaSts: boolean, hasMx: boolean): Finding {
+  if (!hasMx) {
+    return {
+      id: "mta-sts",
+      category: "dns",
+      title: "MTA-STS not applicable (no mail servers)",
+      status: "info",
+      points: 0,
+      maxPoints: 0,
+      severity: "info",
+      detail: "The domain publishes no MX records, so inbound-mail transport policies don't apply.",
+    };
+  }
+  return mtaSts
+    ? {
+        id: "mta-sts",
+        category: "dns",
+        title: "MTA-STS enforced",
+        status: "pass",
+        points: 4,
+        maxPoints: 4,
+        severity: "medium",
+        detail:
+          "MTA-STS tells sending servers to require TLS for mail to your domain, blocking downgrade and interception attacks.",
+      }
+    : {
+        id: "mta-sts",
+        category: "dns",
+        title: "No MTA-STS policy",
+        status: "warn",
+        points: 0,
+        maxPoints: 4,
+        severity: "medium",
+        detail:
+          "Without MTA-STS, mail to your domain can be delivered over unencrypted or downgraded connections.",
+        fix: `# 1) TXT at _mta-sts.yourdomain.com:\n"v=STSv1; id=$(date +%s)"\n# 2) Serve https://mta-sts.yourdomain.com/.well-known/mta-sts.txt:\nversion: STSv1\nmode: enforce\nmx: mail.yourdomain.com\nmax_age: 604800`,
+      };
+}
+
+export function checkTlsRpt(tlsRpt: boolean, hasMx: boolean): Finding {
+  if (!hasMx) {
+    return {
+      id: "tls-rpt",
+      category: "dns",
+      title: "TLS-RPT not applicable (no mail servers)",
+      status: "info",
+      points: 0,
+      maxPoints: 0,
+      severity: "info",
+      detail: "The domain publishes no MX records.",
+    };
+  }
+  return tlsRpt
+    ? {
+        id: "tls-rpt",
+        category: "dns",
+        title: "SMTP TLS Reporting enabled",
+        status: "pass",
+        points: 3,
+        maxPoints: 3,
+        severity: "low",
+        detail: "TLS-RPT is published, so you receive reports when mail servers fail to negotiate TLS.",
+      }
+    : {
+        id: "tls-rpt",
+        category: "dns",
+        title: "No SMTP TLS Reporting (TLS-RPT)",
+        status: "warn",
+        points: 0,
+        maxPoints: 3,
+        severity: "low",
+        detail: "Publish TLS-RPT to get visibility into mail-delivery TLS failures against your domain.",
+        fix: `# TXT at _smtp._tls.yourdomain.com:\n"v=TLSRPTv1; rua=mailto:tlsrpt@yourdomain.com"`,
+      };
+}
+
+export function checkDkim(dkim: boolean, selector: string | null, hasMx: boolean): Finding {
+  if (dkim) {
+    return {
+      id: "dkim",
+      category: "dns",
+      title: `DKIM found (selector: ${selector})`,
+      status: "pass",
+      points: 6,
+      maxPoints: 6,
+      severity: "medium",
+      detail:
+        "A DKIM public key is published, so recipients can cryptographically verify your mail wasn't tampered with in transit.",
+    };
+  }
+  return {
+    id: "dkim",
+    category: "dns",
+    title: "No DKIM found for common selectors",
+    status: "warn",
+    points: 0,
+    maxPoints: 0, // best-effort (custom selectors exist) — surfaced without penalising the score
+    severity: hasMx ? "medium" : "low",
+    detail:
+      "We checked common DKIM selectors (default, google, selector1/2, k1, mail) and found none. You may use a custom selector — verify DKIM is signing your outbound mail.",
+    fix: `# Publish your provider's DKIM public key as a TXT record at:\n<selector>._domainkey.yourdomain.com`,
+  };
+}
+
+export function checkBimi(bimi: boolean): Finding {
+  return bimi
+    ? {
+        id: "bimi",
+        category: "dns",
+        title: "BIMI logo published",
+        status: "pass",
+        points: 2,
+        maxPoints: 2,
+        severity: "info",
+        detail:
+          "A BIMI record is published, letting supporting inboxes show your verified brand logo next to authenticated mail.",
+      }
+    : {
+        id: "bimi",
+        category: "dns",
+        title: "No BIMI record",
+        status: "info",
+        points: 0,
+        maxPoints: 0,
+        severity: "info",
+        detail:
+          "BIMI (optional) displays your brand logo in supporting inboxes once DMARC is enforced. A nice trust signal once your email auth is solid.",
+      };
+}
+
+// ---------- Content Integrity ----------
+
+export function checkMixedContent(mixed: MixedContent | null, isHttps: boolean): Finding {
+  if (!isHttps) {
+    return {
+      id: "mixed-content",
+      category: "content",
+      title: "Mixed content not applicable (HTTP)",
+      status: "info",
+      points: 0,
+      maxPoints: 0,
+      severity: "info",
+      detail: "The page isn't served over HTTPS, so mixed-content rules don't apply yet.",
+    };
+  }
+  if (!mixed) {
+    return {
+      id: "mixed-content",
+      category: "content",
+      title: "Page markup not analyzed",
+      status: "info",
+      points: 0,
+      maxPoints: 0,
+      severity: "info",
+      detail: "The response wasn't HTML we could analyze for mixed content.",
+    };
+  }
+  if (mixed.count > 0) {
+    return {
+      id: "mixed-content",
+      category: "content",
+      title: `${mixed.count} active mixed-content resource(s)`,
+      status: "fail",
+      points: 0,
+      maxPoints: 10,
+      severity: "high",
+      evidence: mixed.samples.slice(0, 3).join("  ·  "),
+      detail:
+        "The HTTPS page loads scripts, images, or frames over plain http://. Browsers may block them or downgrade the page's security, and attackers on the network can tamper with them.",
+      fix: `# Upgrade every resource to https:// and add:\nContent-Security-Policy: upgrade-insecure-requests`,
+    };
+  }
+  return {
+    id: "mixed-content",
+    category: "content",
+    title: "No mixed content",
+    status: "pass",
+    points: 10,
+    maxPoints: 10,
+    severity: "medium",
+    detail: "Every sub-resource on the page is loaded over HTTPS — no insecure scripts, images, or frames.",
+  };
 }
 
 export function checkMethods(allow: string | null): Finding {

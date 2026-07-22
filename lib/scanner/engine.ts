@@ -1,4 +1,4 @@
-import type { Finding, ScanResult } from "./types";
+import type { Finding, ScanResult, MixedContent } from "./types";
 import {
   normalizeUrl,
   isBlockedHost,
@@ -6,12 +6,17 @@ import {
   fetchWithTimeout,
   inspectTls,
   resolveDns,
+  resolveDnssec,
+  resolveEmailAuth,
 } from "./net";
 import {
   checkHttps,
   checkRedirect,
   checkHsts,
   checkTls,
+  checkForwardSecrecy,
+  checkKeyStrength,
+  checkOcsp,
   checkCsp,
   checkClickjacking,
   checkNosniff,
@@ -19,6 +24,12 @@ import {
   checkPermissions,
   checkCrossOrigin,
   checkDns,
+  checkDnssec,
+  checkMtaSts,
+  checkTlsRpt,
+  checkDkim,
+  checkBimi,
+  checkMixedContent,
   checkCookies,
   checkServerBanner,
   checkPoweredBy,
@@ -98,6 +109,14 @@ export async function runScan(rawInput: string): Promise<ScanResult> {
       caa: false,
     })
   );
+  const dnssecReq = resolveDnssec(host).catch(() => false);
+  const emailAuthReq = resolveEmailAuth(domain).catch(() => ({
+    mtaSts: false,
+    tlsRpt: false,
+    bimi: false,
+    dkim: false,
+    dkimSelector: null as string | null,
+  }));
 
   const securityTxtReq = (async (): Promise<boolean> => {
     try {
@@ -123,14 +142,17 @@ export async function runScan(rawInput: string): Promise<ScanResult> {
     }
   })();
 
-  const [res, redirectedToHttps, tls, dns, hasSecurityTxt, allow] = await Promise.all([
-    mainReq,
-    redirectReq,
-    tlsReq,
-    dnsReq,
-    securityTxtReq,
-    methodsReq,
-  ]);
+  const [res, redirectedToHttps, tls, dns, hasSecurityTxt, allow, dnssec, emailAuth] =
+    await Promise.all([
+      mainReq,
+      redirectReq,
+      tlsReq,
+      dnsReq,
+      securityTxtReq,
+      methodsReq,
+      dnssecReq,
+      emailAuthReq,
+    ]);
 
   if (!res) {
     throw new ScanError("Couldn't reach that site. Check the address and try again.", 502);
@@ -141,11 +163,33 @@ export async function runScan(rawInput: string): Promise<ScanResult> {
   const finalIsHttps = finalUrl.toLowerCase().startsWith("https://");
   const cookies = getSetCookies(headers);
 
+  // Read a capped slice of the HTML to detect active mixed content.
+  let mixed: MixedContent | null = null;
+  try {
+    const ct = headers.get("content-type") || "";
+    if (finalIsHttps && /text\/html/i.test(ct)) {
+      const html = (await res.text()).slice(0, 600000);
+      const found = new Set<string>();
+      const collect = (re: RegExp) => {
+        let m: RegExpExecArray | null;
+        while ((m = re.exec(html)) && found.size < 25) found.add(m[1]);
+      };
+      collect(/\b(?:src|srcset)\s*=\s*["']?(http:\/\/[^"'\s>]+)/gi);
+      collect(/<link[^>]+href\s*=\s*["']?(http:\/\/[^"'\s>]+)/gi);
+      mixed = { count: found.size, samples: Array.from(found).slice(0, 5) };
+    }
+  } catch {
+    mixed = null;
+  }
+
   const findings: Finding[] = [
     checkHttps(finalIsHttps),
     checkRedirect(redirectedToHttps),
     checkHsts(headers),
     ...checkTls(tls),
+    checkForwardSecrecy(tls),
+    checkKeyStrength(tls),
+    checkOcsp(tls),
     checkCsp(headers),
     checkClickjacking(headers),
     checkNosniff(headers),
@@ -153,6 +197,12 @@ export async function runScan(rawInput: string): Promise<ScanResult> {
     checkPermissions(headers),
     checkCrossOrigin(headers),
     ...checkDns(dns),
+    checkDnssec(dnssec),
+    checkMtaSts(emailAuth.mtaSts, dns.hasMx),
+    checkTlsRpt(emailAuth.tlsRpt, dns.hasMx),
+    checkDkim(emailAuth.dkim, emailAuth.dkimSelector, dns.hasMx),
+    checkBimi(emailAuth.bimi),
+    checkMixedContent(mixed, finalIsHttps),
     checkServerBanner(headers),
     checkPoweredBy(headers),
     checkSecurityTxt(hasSecurityTxt),
@@ -185,6 +235,7 @@ export async function runScan(rawInput: string): Promise<ScanResult> {
       ip: dns.ip,
       tls: tls || undefined,
       email: { spf: !!dns.spf, dmarc: dns.dmarc ?? null, mx: dns.hasMx },
+      dnssec,
       redirectedToHttps: redirectedToHttps ?? undefined,
     },
     passed,

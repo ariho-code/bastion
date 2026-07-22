@@ -51,10 +51,11 @@ export async function fetchWithTimeout(
   }
 }
 
-/** Inspect the TLS certificate and negotiated protocol for a host on :443. */
+/** Inspect the TLS certificate, negotiated protocol, cipher, OCSP stapling. */
 export function inspectTls(host: string, timeoutMs = 8000): Promise<TlsInfo | null> {
   return new Promise((resolve) => {
     let settled = false;
+    let ocspStapled = false;
     const finish = (v: TlsInfo | null) => {
       if (settled) return;
       settled = true;
@@ -66,19 +67,22 @@ export function inspectTls(host: string, timeoutMs = 8000): Promise<TlsInfo | nu
       resolve(v);
     };
 
+    const connOpts: tls.ConnectionOptions & { requestOCSP?: boolean } = {
+      host,
+      port: 443,
+      servername: host,
+      rejectUnauthorized: false, // inspect even invalid certs; we report validity ourselves
+      requestOCSP: true,
+      ALPNProtocols: ["h2", "http/1.1"],
+    };
+
     const socket = tls.connect(
-      {
-        host,
-        port: 443,
-        servername: host,
-        rejectUnauthorized: false, // inspect even invalid certs; we report validity ourselves
-        ALPNProtocols: ["h2", "http/1.1"],
-      },
+      connOpts,
       () => {
         try {
           const cert = socket.getPeerCertificate(true) as any;
           const protocol = socket.getProtocol() || undefined;
-          const cipher = socket.getCipher?.()?.name;
+          const cipherName = socket.getCipher?.()?.name;
           const validTo = cert?.valid_to as string | undefined;
           let daysRemaining: number | undefined;
           if (validTo) {
@@ -94,9 +98,14 @@ export function inspectTls(host: string, timeoutMs = 8000): Promise<TlsInfo | nu
                 .filter(Boolean)
             : undefined;
 
+          const isEc = !!(cert?.nistCurve || cert?.asn1Curve);
+          const keyType = isEc ? "EC" : cert?.bits ? "RSA" : undefined;
+          const tls13 = /TLSv1\.3/i.test(protocol || "");
+          const forwardSecrecy = tls13 || /ECDHE|DHE/i.test(cipherName || "");
+
           finish({
             protocol,
-            cipher,
+            cipher: cipherName,
             authorized: socket.authorized,
             authorizationError: (socket as any).authorizationError
               ? String((socket as any).authorizationError)
@@ -108,6 +117,9 @@ export function inspectTls(host: string, timeoutMs = 8000): Promise<TlsInfo | nu
             daysRemaining,
             san,
             keyBits: cert?.bits,
+            keyType,
+            forwardSecrecy,
+            ocspStapled,
           });
         } catch {
           finish(null);
@@ -115,9 +127,85 @@ export function inspectTls(host: string, timeoutMs = 8000): Promise<TlsInfo | nu
       }
     );
 
+    socket.on("OCSPResponse", (data: Buffer) => {
+      if (data && data.length > 0) ocspStapled = true;
+    });
     socket.setTimeout(timeoutMs, () => finish(null));
     socket.on("error", () => finish(null));
   });
+}
+
+/** DNSSEC validation via DNS-over-HTTPS (Cloudflare) — checks the AD flag. */
+export async function resolveDnssec(host: string): Promise<boolean> {
+  try {
+    const r = await fetchWithTimeout(
+      `https://cloudflare-dns.com/dns-query?name=${encodeURIComponent(host)}&do=1`,
+      { headers: { accept: "application/dns-json" } },
+      5000
+    );
+    if (!r.ok) return false;
+    const j: any = await r.json();
+    return j?.AD === true;
+  } catch {
+    return false;
+  }
+}
+
+export interface EmailAuth {
+  mtaSts: boolean;
+  tlsRpt: boolean;
+  bimi: boolean;
+  dkim: boolean;
+  dkimSelector: string | null;
+}
+
+/** Advanced email-security posture: MTA-STS, TLS-RPT, BIMI, DKIM (common selectors). */
+export async function resolveEmailAuth(domain: string): Promise<EmailAuth> {
+  const selectors = ["default", "google", "selector1", "selector2", "k1", "mail"];
+
+  const txt = (name: string) =>
+    withTimeout(dnsp.resolveTxt(name).catch(() => [] as string[][]), 4000, [] as string[][]).then(
+      flattenTxt
+    );
+
+  const [mtaTxt, mtaFileOk, tlsRptTxt, bimiTxt, dkimHits] = await Promise.all([
+    txt("_mta-sts." + domain),
+    (async () => {
+      try {
+        const r = await fetchWithTimeout(
+          "https://mta-sts." + domain + "/.well-known/mta-sts.txt",
+          {},
+          4000
+        );
+        return r.ok;
+      } catch {
+        return false;
+      }
+    })(),
+    txt("_smtp._tls." + domain),
+    txt("default._bimi." + domain),
+    Promise.all(
+      selectors.map((s) =>
+        txt(s + "._domainkey." + domain).then((recs) => ({
+          s,
+          found: recs.some((r) => /v=DKIM1|k=rsa|p=[A-Za-z0-9]/i.test(r)),
+        }))
+      )
+    ),
+  ]);
+
+  const mtaSts = mtaTxt.some((r) => /v=STSv1/i.test(r)) || mtaFileOk;
+  const tlsRpt = tlsRptTxt.some((r) => /v=TLSRPTv1/i.test(r));
+  const bimi = bimiTxt.some((r) => /v=BIMI1/i.test(r));
+  const dkimHit = dkimHits.find((d) => d.found);
+
+  return {
+    mtaSts,
+    tlsRpt,
+    bimi,
+    dkim: !!dkimHit,
+    dkimSelector: dkimHit ? dkimHit.s : null,
+  };
 }
 
 async function withTimeout<T>(p: Promise<T>, ms: number, fallback: T): Promise<T> {

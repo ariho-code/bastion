@@ -9,7 +9,14 @@ export function gradeFromScore(pct: number): string {
   return "F";
 }
 
-const CATEGORY_ORDER: Category[] = ["transport", "headers", "dns", "cookies", "disclosure"];
+const CATEGORY_ORDER: Category[] = [
+  "transport",
+  "headers",
+  "dns",
+  "cookies",
+  "content",
+  "disclosure",
+];
 
 export function scoreByCategory(findings: Finding[]): {
   categories: CategoryScore[];

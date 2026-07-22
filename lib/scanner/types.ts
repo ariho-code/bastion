@@ -1,6 +1,6 @@
 export type Status = "pass" | "warn" | "fail" | "info";
 export type Severity = "critical" | "high" | "medium" | "low" | "info";
-export type Category = "transport" | "headers" | "dns" | "cookies" | "disclosure";
+export type Category = "transport" | "headers" | "dns" | "cookies" | "content" | "disclosure";
 
 export interface Finding {
   id: string;
@@ -39,6 +39,9 @@ export interface TlsInfo {
   daysRemaining?: number;
   san?: string[];
   keyBits?: number;
+  keyType?: string; // "RSA" | "EC"
+  forwardSecrecy?: boolean;
+  ocspStapled?: boolean;
 }
 
 export interface DnsInfo {
@@ -47,6 +50,17 @@ export interface DnsInfo {
   spf?: string | null;
   dmarc?: string | null;
   caa: boolean;
+  dnssec?: boolean;
+  mtaSts?: boolean;
+  tlsRpt?: boolean;
+  bimi?: boolean;
+  dkim?: boolean;
+  dkimSelector?: string | null;
+}
+
+export interface MixedContent {
+  count: number;
+  samples: string[];
 }
 
 export interface ScanResult {
@@ -64,6 +78,7 @@ export interface ScanResult {
     ip?: string;
     tls?: TlsInfo;
     email?: { spf: boolean; dmarc: string | null; mx: boolean };
+    dnssec?: boolean;
     redirectedToHttps?: boolean;
   };
   passed: number;
@@ -78,5 +93,6 @@ export const CATEGORY_LABELS: Record<Category, string> = {
   headers: "Response Headers",
   dns: "DNS & Email",
   cookies: "Cookies",
+  content: "Content Integrity",
   disclosure: "Info Disclosure",
 };

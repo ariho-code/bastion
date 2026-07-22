@@ -22,7 +22,7 @@ const TIERS: Tier[] = [
     tagline: "Everything you need to check and fix a site.",
     features: [
       "Unlimited security scans",
-      "Full A–F grade across all 20+ checks",
+      "Full A–F grade across all 28 checks",
       "Copy-paste fix for every issue",
       "PDF report export",
       "Local scan history",

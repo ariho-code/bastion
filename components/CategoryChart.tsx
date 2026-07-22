@@ -9,6 +9,7 @@ const CAT_ICON: Record<string, IconName> = {
   headers: "shield",
   dns: "mail",
   cookies: "cookie",
+  content: "file-text",
   disclosure: "eye",
 };
 

@@ -14,10 +14,11 @@ const FREE_SCAN_LIMIT = 20; // generous free tier; heavy users are nudged to Pro
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 const CATEGORY_BLURB: Record<Category, string> = {
-  transport: "HTTPS, redirects, HSTS & TLS certificate",
-  headers: "CSP, clickjacking, MIME & referrer controls",
-  dns: "Email spoofing protection & certificate authority rules",
+  transport: "HTTPS, HSTS, TLS, forward secrecy, OCSP & key strength",
+  headers: "CSP depth, clickjacking, MIME & cross-origin isolation",
+  dns: "DNSSEC, SPF, DMARC, DKIM, MTA-STS, TLS-RPT & BIMI",
   cookies: "Secure, HttpOnly & SameSite flags",
+  content: "Live mixed-content & sub-resource integrity",
   disclosure: "Server banners, methods & disclosure policy",
 };
 
@@ -319,6 +320,10 @@ export default function ScannerApp() {
                 <span className={`chip ${result.meta.email?.dmarc ? "chip-ok" : "chip-bad"}`}>
                   DMARC {result.meta.email?.dmarc ? "✓" : "✗"}
                 </span>
+                <span className={`chip ${result.meta.dnssec ? "chip-ok" : "chip-bad"}`}>
+                  DNSSEC {result.meta.dnssec ? "✓" : "✗"}
+                </span>
+                {result.meta.tls?.forwardSecrecy && <span className="chip chip-ok">FS ✓</span>}
                 {result.meta.server && <span className="chip">{result.meta.server}</span>}
               </div>
               <div className="actions">
