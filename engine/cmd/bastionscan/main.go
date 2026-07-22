@@ -106,6 +106,9 @@ func runScan(base, profile string, args []string) {
 	cookie := fs.String("cookie", "", "session cookie header")
 	authz := fs.String("auth", "", "authorization header")
 	gateGrade := fs.String("gate-grade", "", "CI gate minimum grade")
+	intensity := fs.String("intensity", "safe", "safe|thorough|aggressive")
+	stealth := fs.Bool("stealth", true, "UA rotation + jitter")
+	consentLoad := fs.Bool("consent-load", false, "opt-in bounded load (aggressive only)")
 	fs.Var(&excludes, "exclude", "exclude path")
 	fs.Var(&includes, "include", "include path")
 	fs.Var(&disables, "disable", "disable module")
@@ -126,6 +129,9 @@ func runScan(base, profile string, args []string) {
 		"requestDelayMs": *delay,
 		"safeMode":       safe,
 		"vertical":       *vertical,
+		"intensity":      *intensity,
+		"stealth":        *stealth,
+		"consentLoad":    *consentLoad,
 	}
 	if *cookie != "" || *authz != "" {
 		sess := map[string]any{}

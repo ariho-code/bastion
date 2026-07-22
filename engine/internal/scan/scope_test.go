@@ -51,3 +51,17 @@ func TestScopeIsSafeDefault(t *testing.T) {
 		t.Error("explicit false must disable safe mode")
 	}
 }
+
+func TestProbeBudgetCaps(t *testing.T) {
+	s := Scope{Intensity: "aggressive", MaxRequests: 5000}
+	max, conc, _ := s.ProbeBudget()
+	if max > 1200 {
+		t.Fatalf("max requests hard cap broken: %d", max)
+	}
+	if conc > 16 {
+		t.Fatalf("concurrency hard cap broken: %d", conc)
+	}
+	if s.NormalizedIntensity() != "aggressive" {
+		t.Fatal("intensity")
+	}
+}

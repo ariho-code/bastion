@@ -43,6 +43,10 @@ export async function POST(req: NextRequest) {
       requestDelayMs?: number;
       safeMode?: boolean;
       vertical?: string;
+      intensity?: string;
+      stealth?: boolean;
+      jitterMs?: number;
+      consentLoad?: boolean;
       session?: {
         cookie?: string;
         authorization?: string;
@@ -82,6 +86,14 @@ export async function POST(req: NextRequest) {
     if (typeof s.vertical === "string" && s.vertical.trim()) {
       scope.vertical = s.vertical.trim().toLowerCase().slice(0, 32);
     }
+    if (typeof s.intensity === "string" && s.intensity.trim()) {
+      const i = s.intensity.trim().toLowerCase();
+      if (i === "safe" || i === "thorough" || i === "aggressive") scope.intensity = i;
+    }
+    if (typeof s.stealth === "boolean") scope.stealth = s.stealth;
+    if (typeof s.jitterMs === "number" && s.jitterMs >= 0)
+      scope.jitterMs = Math.min(2000, Math.floor(s.jitterMs));
+    if (typeof s.consentLoad === "boolean") scope.consentLoad = s.consentLoad;
     if (s.session && typeof s.session === "object") {
       const sess: Record<string, unknown> = {};
       if (typeof s.session.cookie === "string") sess.cookie = s.session.cookie.slice(0, 8192);

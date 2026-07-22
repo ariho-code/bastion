@@ -201,6 +201,9 @@ export default function AdvancedScanner() {
   const [vertical, setVertical] = useState("general");
   const [sessionCookie, setSessionCookie] = useState("");
   const [sessionAuth, setSessionAuth] = useState("");
+  const [intensity, setIntensity] = useState<"safe" | "thorough" | "aggressive">("safe");
+  const [stealth, setStealth] = useState(true);
+  const [consentLoad, setConsentLoad] = useState(false);
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
 
   function parseList(raw: string): string[] {
@@ -280,10 +283,13 @@ export default function AdvancedScanner() {
                 excludePaths: parseList(excludePaths),
                 includePaths: parseList(includePaths),
                 disableModules: parseList(disableModules),
-                safeMode,
-                maxRequests: 400,
+                safeMode: intensity === "safe" ? true : safeMode,
+                maxRequests: intensity === "aggressive" ? 900 : intensity === "thorough" ? 600 : 400,
                 requestDelayMs: 25,
                 vertical,
+                intensity,
+                stealth,
+                consentLoad: intensity === "aggressive" ? consentLoad : false,
                 session:
                   sessionCookie.trim() || sessionAuth.trim()
                     ? {
@@ -322,6 +328,9 @@ export default function AdvancedScanner() {
       vertical,
       sessionCookie,
       sessionAuth,
+      intensity,
+      stealth,
+      consentLoad,
     ]
   );
 
@@ -532,6 +541,34 @@ export default function AdvancedScanner() {
                 placeholder="Bearer eyJ…"
               />
             </label>
+            <label className="av-scope-field">
+              <span>Attack simulation intensity</span>
+              <select
+                value={intensity}
+                onChange={(e) => setIntensity(e.target.value as "safe" | "thorough" | "aggressive")}
+              >
+                <option value="safe">Safe — detection canaries, low noise</option>
+                <option value="thorough">Thorough — broader paths &amp; stealth jitter</option>
+                <option value="aggressive">Aggressive — red-team budget + optional bounded load</option>
+              </select>
+            </label>
+            <label className="av-scope-check">
+              <input type="checkbox" checked={stealth} onChange={(e) => setStealth(e.target.checked)} />
+              <span>Stealth recon (UA rotation + jitter — validates WAF/bot rules)</span>
+            </label>
+            {intensity === "aggressive" && (
+              <label className="av-scope-check">
+                <input
+                  type="checkbox"
+                  checked={consentLoad}
+                  onChange={(e) => setConsentLoad(e.target.checked)}
+                />
+                <span>
+                  I consent to bounded concurrent load (≤12 workers, ≤400 req, ≤35s) on in-scope
+                  paths only — not multi-IP DDoS
+                </span>
+              </label>
+            )}
           </div>
         </div>
       )}

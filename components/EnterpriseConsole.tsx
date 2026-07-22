@@ -78,8 +78,8 @@ export default function EnterpriseConsole() {
   };
 
   return (
-    <section className="ec">
-      <h2>Workbench</h2>
+    <section className="ec card" style={{ marginTop: "1.25rem" }}>
+      <h2 style={{ fontFamily: "var(--display)", letterSpacing: "-0.02em" }}>Workbench</h2>
       <div className="ec-row">
         <input
           className="ec-input"

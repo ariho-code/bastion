@@ -31,7 +31,9 @@ import (
 	_ "github.com/ariho-code/bastionscan/engine/internal/modules/fingerprint"
 	_ "github.com/ariho-code/bastionscan/engine/internal/modules/graphql"
 	_ "github.com/ariho-code/bastionscan/engine/internal/modules/headers"
+	_ "github.com/ariho-code/bastionscan/engine/internal/modules/hostinject"
 	_ "github.com/ariho-code/bastionscan/engine/internal/modules/inject"
+	_ "github.com/ariho-code/bastionscan/engine/internal/modules/loadbound"
 	_ "github.com/ariho-code/bastionscan/engine/internal/modules/intel"
 	_ "github.com/ariho-code/bastionscan/engine/internal/modules/jwtcheck"
 	_ "github.com/ariho-code/bastionscan/engine/internal/modules/methods"
@@ -43,6 +45,7 @@ import (
 	_ "github.com/ariho-code/bastionscan/engine/internal/modules/subdomains"
 	_ "github.com/ariho-code/bastionscan/engine/internal/modules/tls"
 	_ "github.com/ariho-code/bastionscan/engine/internal/modules/vertical"
+	_ "github.com/ariho-code/bastionscan/engine/internal/modules/wafdetect"
 	_ "github.com/ariho-code/bastionscan/engine/internal/modules/xss"
 )
 

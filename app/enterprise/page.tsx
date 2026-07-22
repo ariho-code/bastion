@@ -2,129 +2,152 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { brand } from "@/lib/brand";
 import EnterpriseConsole from "@/components/EnterpriseConsole";
+import Icon, { type IconName } from "@/components/Icon";
 
 export const metadata: Metadata = {
-  title: `Enterprise AppSec Console · ${brand.name}`,
+  title: `Enterprise AppSec · ${brand.name}`,
   description:
-    "Ownership-verified Active AppSec: scoped DAST for SQLi, XSS, CSRF, path traversal, JWT hygiene, and more — built for red teams, banks, and ecommerce.",
+    "Ownership-verified red-team simulation for banks, ecommerce, and SaaS — stealth recon, DAST, bounded load, AI learning. White/gray hat defense against black-hat TTPs.",
 };
+
+const CAPS: { icon: IconName; title: string; body: string }[] = [
+  {
+    icon: "shield-check",
+    title: "DNS ownership gate",
+    body: "Active & aggressive probes never run until the domain publishes bastionscan-verify. Engine verifies — clients cannot spoof.",
+  },
+  {
+    icon: "zap",
+    title: "Attacker-TTP simulation",
+    body: "SQLi, XSS, LFI, CSRF, Host injection, WAF recon, GraphQL, JWT, default creds — detection-grade mimics of real intrusion paths.",
+  },
+  {
+    icon: "activity",
+    title: "Stealth + intensity",
+    body: "Low-and-slow jitter and UA rotation validate bot/WAF rules. Aggressive unlocks hard-capped concurrent load with explicit consent.",
+  },
+  {
+    icon: "gauge",
+    title: "Scope exclusions",
+    body: "Exclude /billing, partner APIs, prod admin. Include-only allow-lists. Disable modules. Safe by default.",
+  },
+  {
+    icon: "sparkles",
+    title: "AI that learns",
+    body: "DeepSeek (or Grok/Claude) + RAG memory + FP model trained on your true/false positive labels.",
+  },
+  {
+    icon: "code",
+    title: "CI / CLI gate",
+    body: "bastionscan active --gate-grade B fails pipelines when posture slips. Same engine Apple-scale teams expect: repeatable, auditable.",
+  },
+];
 
 export default function EnterprisePage() {
   return (
-    <main className="ent">
-      <header className="ent-hero">
-        <p className="ent-kicker">Enterprise · ownership-gated</p>
-        <h1>Active AppSec console</h1>
-        <p className="ent-sub">
-          Prove domain ownership with a DNS TXT record, define scope exclusions for sensitive paths,
-          then run detection-grade DAST against <em>your</em> systems only. Built for red teams,
-          security companies, banks, ecommerce, and growing SaaS — with precision over noise.
-        </p>
-        <div className="ent-actions">
-          <Link href="/advanced?profile=active" className="ent-btn primary">
-            Open Advanced Active scan
-          </Link>
-          <Link href="/developers" className="ent-btn">
-            API &amp; CLI docs
-          </Link>
+    <main>
+      <section className="hero">
+        <div className="hero-inner">
+          <div className="badge">
+            <span className="badge-dot" />
+            Enterprise · white / gray hat · ownership-gated
+          </div>
+          <h1>
+            Test like a black hat.
+            <br />
+            <span className="grad">Defend like a platform team.</span>
+          </h1>
+          <p className="hero-sub">
+            Bastionscan gives banks, marketplaces, and SaaS companies the same class of checks
+            sophisticated attackers use — only after you prove you own the asset, and only inside
+            the scope you define. No third-party firepower. No open DDoS kit. Real TTPs, hard caps,
+            full audit trail.
+          </p>
+          <div className="hero-trust">
+            <span>DNS-verified Active</span>
+            <span className="sep">·</span>
+            <span>Stealth recon</span>
+            <span className="sep">·</span>
+            <span>Bounded load opt-in</span>
+            <span className="sep">·</span>
+            <span>AI + RAG learning</span>
+          </div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "0.75rem", marginTop: "1.5rem" }}>
+            <Link href="/advanced?profile=active" className="btn-primary">
+              Open Active AppSec
+            </Link>
+            <Link href="/developers" className="btn-ghost">
+              API &amp; CLI
+            </Link>
+          </div>
         </div>
-      </header>
-
-      <section className="ent-grid">
-        <article className="ent-card">
-          <h2>Hard ownership gate</h2>
-          <p>
-            Active modules never run without a live DNS TXT token on the registrable domain. The
-            engine verifies ownership itself — no client flag is trusted in production.
-          </p>
-        </article>
-        <article className="ent-card">
-          <h2>Precision DAST</h2>
-          <p>
-            SQL injection (error fingerprints), reflected XSS (unencoded canaries), path traversal
-            (passwd/win.ini content only), CSRF on sensitive forms, open redirects, JWT{" "}
-            <code>alg=none</code>, default credentials (tiny list, lockout-aware).
-          </p>
-        </article>
-        <article className="ent-card">
-          <h2>Enterprise scope</h2>
-          <p>
-            Exclude <code>/billing</code>, partner APIs, or production admin. Disable individual
-            modules. Cap request volume and delay. Safe mode is on by default.
-          </p>
-        </article>
-        <article className="ent-card">
-          <h2>Audit &amp; install</h2>
-          <p>
-            Tamper-evident audit chain, RBAC/ABAC, Prometheus metrics. Install the CLI on macOS or
-            Linux with one script for CI and air-gapped red-team laptops.
-          </p>
-        </article>
       </section>
 
-      <EnterpriseConsole />
-
-      <section className="ent-modules">
-        <h2>Active modules (verified only)</h2>
-        <ul>
-          <li>
-            <strong>sqli</strong> — safe quote probes; report only on known DB error signatures
-          </li>
-          <li>
-            <strong>xss</strong> — unique canary must reflect unencoded
-          </li>
-          <li>
-            <strong>inject</strong> — path traversal / LFI with OS file fingerprints
-          </li>
-          <li>
-            <strong>csrf</strong> — anti-CSRF tokens on password/payment forms
-          </li>
-          <li>
-            <strong>authweak</strong> — ≤5 default pairs, 1.5s spacing, stop on lockout
-          </li>
-          <li>
-            <strong>openredirect</strong> — external canary in Location / meta refresh
-          </li>
-          <li>
-            <strong>jwtcheck</strong> — alg=none / empty signature detection
-          </li>
-          <li>
-            <strong>discovery</strong> · <strong>methods</strong> — content &amp; HTTP method surface
-          </li>
-        </ul>
+      <section className="section">
+        <div className="section-inner">
+          <h2 className="section-title">Built for teams that ship at scale</h2>
+          <p className="section-sub">
+            Jumia, Amazon-style marketplaces, Apple-grade product orgs, AI labs — same problem:
+            find the hole before a black hat does, without torching production.
+          </p>
+          <div className="grid-3" style={{ marginTop: "1.75rem" }}>
+            {CAPS.map((c) => (
+              <article key={c.title} className="card">
+                <div className="card-icon">
+                  <Icon name={c.icon} size={22} />
+                </div>
+                <h3>{c.title}</h3>
+                <p>{c.body}</p>
+              </article>
+            ))}
+          </div>
+        </div>
       </section>
 
-      <section className="ent-install">
-        <h2>Install CLI (macOS / Linux)</h2>
-        <pre className="ent-pre">{`curl -fsSL https://raw.githubusercontent.com/ariho-code/bastion/main/scripts/install.sh | bash`}</pre>
-        <p>
-          Or from a clone: <code>./scripts/install.sh</code> — installs{" "}
-          <code>bastionscan</code> to <code>~/.local/bin</code>. Then:
-        </p>
-        <pre className="ent-pre">{`bastionscan verify example.com
-# publish the TXT record, then:
-bastionscan active example.com --exclude /billing --exclude /admin/prod
-bastionscan active example.com --disable authweak,discovery --safe`}</pre>
+      <section className="section" id="console">
+        <div className="section-inner">
+          <h2 className="section-title">Enterprise workbench</h2>
+          <p className="section-sub">
+            Verify ownership, set exclusions, pick a vertical, launch Active with the intensity your
+            change window allows.
+          </p>
+          <EnterpriseConsole />
+        </div>
       </section>
 
-      <style>{`
-        .ent { max-width: 960px; margin: 0 auto; padding: 2.5rem 1.25rem 4rem; }
-        .ent-hero { margin-bottom: 2rem; }
-        .ent-kicker { text-transform: uppercase; letter-spacing: .08em; font-size: .75rem; color: #64748b; font-weight: 600; }
-        .ent h1 { font-size: clamp(1.75rem, 4vw, 2.4rem); margin: .4rem 0 1rem; letter-spacing: -0.02em; }
-        .ent-sub { color: #94a3b8; line-height: 1.6; max-width: 48rem; }
-        .ent-actions { display: flex; flex-wrap: wrap; gap: .75rem; margin-top: 1.25rem; }
-        .ent-btn { display: inline-flex; align-items: center; padding: .65rem 1rem; border-radius: 10px; border: 1px solid rgba(148,163,184,.25); color: #e2e8f0; text-decoration: none; font-weight: 600; font-size: .9rem; }
-        .ent-btn.primary { background: linear-gradient(135deg, #2563eb, #7c3aed); border-color: transparent; color: #fff; }
-        .ent-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin: 2rem 0; }
-        .ent-card { background: rgba(15,23,42,.65); border: 1px solid rgba(148,163,184,.15); border-radius: 14px; padding: 1.1rem 1.15rem; }
-        .ent-card h2 { font-size: 1rem; margin: 0 0 .5rem; }
-        .ent-card p { margin: 0; color: #94a3b8; font-size: .9rem; line-height: 1.55; }
-        .ent-modules, .ent-install { margin-top: 2.5rem; }
-        .ent-modules ul { padding-left: 1.1rem; color: #cbd5e1; line-height: 1.7; }
-        .ent-pre { background: #0b1220; border: 1px solid rgba(148,163,184,.18); border-radius: 12px; padding: 1rem 1.1rem; overflow-x: auto; font-size: .82rem; color: #e2e8f0; }
-        code { font-size: .88em; color: #93c5fd; }
-      `}</style>
+      <section className="section">
+        <div className="section-inner">
+          <h2 className="section-title">Intensity model</h2>
+          <div className="grid-3" style={{ marginTop: "1.25rem" }}>
+            <article className="card">
+              <h3>Safe</h3>
+              <p>
+                Canaries, error fingerprints, stealth on. Default for continuous monitoring and PCI
+                evidence packs.
+              </p>
+            </article>
+            <article className="card">
+              <h3>Thorough</h3>
+              <p>
+                Higher path budget, stealth jitter — validates WAF/bot rules the way recon bots
+                actually behave.
+              </p>
+            </article>
+            <article className="card">
+              <h3>Aggressive</h3>
+              <p>
+                Max authorized probe budget. Optional bounded load (≤12 workers, ≤400 req, ≤35s)
+                with explicit consent — proves rate limits without multi-IP flooding.
+              </p>
+            </article>
+          </div>
+          <p className="section-sub" style={{ marginTop: "1.5rem" }}>
+            Multi-region / multi-IP capacity tests belong in your cloud with k6 during a change
+            window. Bastionscan will not open-proxy botnet-style DDoS — that would make the
+            platform a weapon for black hats.
+          </p>
+        </div>
+      </section>
     </main>
   );
 }

@@ -7,6 +7,7 @@ package activekit
 import (
 	"context"
 	"crypto/rand"
+	"encoding/binary"
 	"encoding/hex"
 	"io"
 	"net/http"
@@ -29,11 +30,20 @@ type Budget struct {
 }
 
 func NewBudget(scope scan.Scope) *Budget {
-	max := int64(scope.MaxRequests)
-	if max <= 0 {
-		max = 400
+	max, _, _ := scope.ProbeBudget()
+	if scope.MaxRequests > 0 && int64(scope.MaxRequests) < int64(max) {
+		max = scope.MaxRequests
 	}
-	return &Budget{max: max}
+	return &Budget{max: int64(max)}
+}
+
+// StealthUserAgents rotate to mimic diverse legitimate clients during authorized tests.
+var StealthUserAgents = []string{
+	"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+	"Mozilla/5.0 (Macintosh; Intel Mac OS X 14_3) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.3 Safari/605.1.15",
+	"Mozilla/5.0 (X11; Linux x86_64; rv:122.0) Gecko/20100101 Firefox/122.0",
+	"Mozilla/5.0 (iPhone; CPU iPhone OS 17_3 like Mac OS X) AppleWebKit/605.1.15 Version/17.3 Mobile/15E148 Safari/604.1",
+	"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Edg/122.0.0.0",
 }
 
 func (b *Budget) Take() bool {
@@ -288,11 +298,35 @@ type Client struct {
 }
 
 func NewClient(env *scan.Env, t *scan.Target) *Client {
-	d := time.Duration(t.Scope.RequestDelayMs) * time.Millisecond
-	if d <= 0 {
-		d = 25 * time.Millisecond
-	}
+	_, _, delayMs := t.Scope.ProbeBudget()
+	d := time.Duration(delayMs) * time.Millisecond
 	return &Client{Env: env, Target: t, Budget: NewBudget(t.Scope), delay: d}
+}
+
+func (c *Client) stealthSleep() {
+	base := c.delay
+	if !c.Target.Scope.IsStealth() {
+		time.Sleep(base)
+		return
+	}
+	// Low-and-slow jitter: base + [0, jitter]
+	j := c.Target.Scope.JitterMs
+	if j <= 0 {
+		j = 120
+	}
+	var b [2]byte
+	_, _ = rand.Read(b[:])
+	extra := time.Duration(int(binary.BigEndian.Uint16(b[:]))%j) * time.Millisecond
+	time.Sleep(base + extra)
+}
+
+func (c *Client) pickUA() string {
+	if !c.Target.Scope.IsStealth() {
+		return c.Env.UserAgent
+	}
+	var b [1]byte
+	_, _ = rand.Read(b[:])
+	return StealthUserAgents[int(b[0])%len(StealthUserAgents)]
 }
 
 // DoGET issues a GET with query overrides on action.
@@ -347,7 +381,7 @@ func (c *Client) do(ctx context.Context, method, rawURL, body, ct string) ProbeR
 		return ProbeResult{Err: errBudget}
 	}
 	c.mu.Lock()
-	time.Sleep(c.delay)
+	c.stealthSleep()
 	c.mu.Unlock()
 
 	var rdr io.Reader
@@ -358,11 +392,12 @@ func (c *Client) do(ctx context.Context, method, rawURL, body, ct string) ProbeR
 	if err != nil {
 		return ProbeResult{Err: err}
 	}
-	req.Header.Set("User-Agent", c.Env.UserAgent)
+	req.Header.Set("User-Agent", c.pickUA())
 	req.Header.Set("Accept", "text/html,application/json,*/*")
-	// Identify Active probes clearly for owner logs / WAF allow-lists.
+	// Always identify authorized Active probes so WAFs can allow-list them.
 	req.Header.Set("X-Bastionscan-Probe", "active-dast")
 	req.Header.Set("X-Bastionscan-Owner-Verified", "1")
+	req.Header.Set("X-Bastionscan-Intensity", c.Target.Scope.NormalizedIntensity())
 	for k, vs := range c.Env.SessionHeaders {
 		for _, v := range vs {
 			req.Header.Add(k, v)

@@ -44,6 +44,20 @@ type Scope struct {
 	// browser session cookie / Authorization header from *their* account.
 	// Never logged in full by modules; only used for outbound probes.
 	Session *Session `json:"session,omitempty"`
+
+	// Intensity: safe | thorough | aggressive (default safe).
+	// Aggressive unlocks higher probe budgets and the bounded load module —
+	// still single-origin, hard-capped, and scope-respecting (not a botnet).
+	Intensity string `json:"intensity,omitempty"`
+	// Stealth randomizes delays and User-Agents so authorized tests mimic
+	// low-and-slow recon (helps validate WAF/bot rules). Not multi-IP hopping;
+	// owners who need multi-egress must run workers on their own network.
+	Stealth *bool `json:"stealth,omitempty"`
+	// JitterMs max random extra delay per probe when stealth is on (0 = auto).
+	JitterMs int `json:"jitterMs,omitempty"`
+	// ConsentLoad must be true with intensity=aggressive to run the bounded
+	// load-resilience suite (explicit owner opt-in).
+	ConsentLoad bool `json:"consentLoad,omitempty"`
 }
 
 // Session is an owner-supplied authenticated context for Active DAST.
@@ -100,7 +114,65 @@ func (s Scope) Merge(o Scope) Scope {
 	if o.Session != nil {
 		out.Session = o.Session
 	}
+	if o.Intensity != "" {
+		out.Intensity = strings.ToLower(strings.TrimSpace(o.Intensity))
+	}
+	if o.Stealth != nil {
+		out.Stealth = o.Stealth
+	}
+	if o.JitterMs > 0 {
+		out.JitterMs = o.JitterMs
+	}
+	if o.ConsentLoad {
+		out.ConsentLoad = true
+	}
 	return out
+}
+
+// NormalizedIntensity returns safe|thorough|aggressive.
+func (s Scope) NormalizedIntensity() string {
+	switch strings.ToLower(strings.TrimSpace(s.Intensity)) {
+	case "thorough", "medium":
+		return "thorough"
+	case "aggressive", "redteam", "red-team", "full":
+		return "aggressive"
+	default:
+		return "safe"
+	}
+}
+
+// IsStealth reports whether stealth/jitter mode is enabled (default true for active).
+func (s Scope) IsStealth() bool {
+	if s.Stealth == nil {
+		return true // default on for authorized Active — quieter, more realistic recon
+	}
+	return *s.Stealth
+}
+
+// ProbeBudget returns (maxRequests, concurrency, baseDelayMs) for Active modules.
+func (s Scope) ProbeBudget() (maxReq, concurrency, delayMs int) {
+	switch s.NormalizedIntensity() {
+	case "aggressive":
+		maxReq, concurrency, delayMs = 900, 12, 15
+	case "thorough":
+		maxReq, concurrency, delayMs = 600, 8, 25
+	default:
+		maxReq, concurrency, delayMs = 400, 6, 40
+	}
+	if s.MaxRequests > 0 && s.MaxRequests < maxReq {
+		maxReq = s.MaxRequests
+	}
+	if s.RequestDelayMs > 0 {
+		delayMs = s.RequestDelayMs
+	}
+	// Hard ceiling — never unbounded.
+	if maxReq > 1200 {
+		maxReq = 1200
+	}
+	if concurrency > 16 {
+		concurrency = 16
+	}
+	return maxReq, concurrency, delayMs
 }
 
 // NormalizedVertical returns a known vertical or "general".
