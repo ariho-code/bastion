@@ -32,11 +32,15 @@ services:
       - key: MAX_CONCURRENCY
         value: "8"
       - key: SCAN_TIMEOUT
-        value: "60s"
+        value: "120s"
       - key: MODULE_TIMEOUT
-        value: "25s"
+        value: "30s"
       - key: ALLOWED_ORIGINS
         value: "*"
+      - key: VERIFY_SECRET
+        sync: false
+      - key: TRUSTED_PROXY
+        value: "true"
 
   # --- Python risk brain -----------------------------------------------------
   - type: web

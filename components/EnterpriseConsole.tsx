@@ -17,6 +17,7 @@ export default function EnterpriseConsole() {
   const [exclude, setExclude] = useState("/billing\n/admin/production");
   const [disable, setDisable] = useState("");
   const [vertical, setVertical] = useState("banking");
+  const [intensity, setIntensity] = useState("safe");
   const [verify, setVerify] = useState<VerifyRecord | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -68,6 +69,7 @@ export default function EnterpriseConsole() {
             excludePaths: exclude.split(/[\n,]+/).map((s) => s.trim()).filter(Boolean),
             disableModules: disable.split(/[\n,]+/).map((s) => s.trim()).filter(Boolean),
             vertical,
+            intensity,
           })
         );
       } catch {
@@ -107,13 +109,21 @@ export default function EnterpriseConsole() {
       )}
       <div className="ec-scope">
         <label>
-          Industry vertical
+          Industry focus
           <select value={vertical} onChange={(e) => setVertical(e.target.value)}>
             <option value="banking">Banking / fintech</option>
             <option value="ecommerce">E-commerce</option>
             <option value="saas">SaaS / B2B</option>
-            <option value="scam">Anti-fraud / scam kit cleanup</option>
+            <option value="scam">Anti-fraud / kit cleanup</option>
             <option value="general">General</option>
+          </select>
+        </label>
+        <label>
+          How thorough
+          <select value={intensity} onChange={(e) => setIntensity(e.target.value)}>
+            <option value="safe">Safe (recommended)</option>
+            <option value="thorough">Thorough</option>
+            <option value="aggressive">Aggressive (change window)</option>
           </select>
         </label>
         <label>

@@ -20,13 +20,14 @@ export default function Footer() {
               <T k="footer.product" />
             </span>
             <a href="/#scan">Scanner</a>
-            <a href="/#how">
-              <T k="nav.how" />
-            </a>
+            <Link href="/scam-check">Scam check</Link>
+            <Link href="/advanced">Advanced</Link>
+            <Link href="/enterprise">Enterprise</Link>
             <a href="/#pricing">
               <T k="nav.pricing" />
             </a>
             <Link href="/docs">API</Link>
+            <Link href="/developers">Developers</Link>
             <a href="/#faq">FAQ</a>
           </div>
           <div className="footer-col">

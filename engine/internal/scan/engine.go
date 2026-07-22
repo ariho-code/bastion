@@ -45,7 +45,12 @@ func NewEngine(opts Options) *Engine {
 // the result. Individual module failures never fail the whole scan.
 func (e *Engine) Run(ctx context.Context, t *Target, profile Profile, env *Env) *ScanResult {
 	started := time.Now()
-	ctx, cancel := context.WithTimeout(ctx, e.opts.ScanTimeout)
+	// Active / red-team profiles need a longer wall clock: many modules, stealth jitter.
+	scanTO := e.opts.ScanTimeout
+	if profile.Level >= ProfileActive.Level && scanTO < 120*time.Second {
+		scanTO = 120 * time.Second
+	}
+	ctx, cancel := context.WithTimeout(ctx, scanTO)
 	defer cancel()
 	if env == nil {
 		env = DefaultEnv()

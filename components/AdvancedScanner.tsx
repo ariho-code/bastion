@@ -348,8 +348,10 @@ export default function AdvancedScanner() {
         };
         if (s.excludePaths?.length) setExcludePaths(s.excludePaths.join("\n"));
         if (s.disableModules?.length) setDisableModules(s.disableModules.join(", "));
-        if ((s as { vertical?: string }).vertical) {
-          setVertical((s as { vertical?: string }).vertical || "general");
+        const sc = s as { vertical?: string; intensity?: string };
+        if (sc.vertical) setVertical(sc.vertical || "general");
+        if (sc.intensity === "safe" || sc.intensity === "thorough" || sc.intensity === "aggressive") {
+          setIntensity(sc.intensity);
         }
         sessionStorage.removeItem("bastion.enterprise.scope");
       }
@@ -582,7 +584,9 @@ export default function AdvancedScanner() {
 
       {error && !data && <div className="av-error">{error}</div>}
 
-      {data && !loading && <Report data={data} pro={pro} onUpgrade={openUpgrade} />}
+      {data && !loading && (
+        <Report data={data} pro={pro} onUpgrade={openUpgrade} vertical={vertical} />
+      )}
 
       <UpgradeModal open={modalOpen} onClose={() => setModalOpen(false)} plan="Pro" reason={modalReason} />
     </div>
@@ -595,10 +599,12 @@ function Report({
   data,
   pro,
   onUpgrade,
+  vertical = "general",
 }: {
   data: AssessResponse;
   pro: boolean;
   onUpgrade: (reason?: string) => void;
+  vertical?: string;
 }) {
   const { scan, analysis } = data;
   const level = analysis.risk_level;
@@ -606,6 +612,7 @@ function Report({
 
   const [company, setCompany] = useState("");
   const [downloading, setDownloading] = useState(false);
+  const [fbNote, setFbNote] = useState("");
 
   // Load any saved white-label company name (Pro).
   useEffect(() => {
@@ -664,8 +671,17 @@ function Report({
             scan_id: analysis.scan_id || "",
           }),
         });
+        setFbNote(
+          label === "false_positive"
+            ? "Thanks — we’ll treat similar alerts more carefully."
+            : label === "fixed"
+              ? "Nice work. Re-scan anytime to confirm."
+              : "Thanks — noted as a real issue."
+        );
+        window.setTimeout(() => setFbNote(""), 4000);
       } catch {
-        /* best-effort learning */
+        setFbNote("Couldn’t save that just now. Please try again.");
+        window.setTimeout(() => setFbNote(""), 4000);
       }
     },
     [analysis.target, analysis.scan_id]
@@ -711,7 +727,7 @@ function Report({
           )}
           <AICopilot
             target={analysis.target}
-            vertical="general"
+            vertical={vertical}
             scanContext={{
               grade: analysis.grade,
               risk_level: analysis.risk_level,
@@ -867,6 +883,7 @@ function Report({
           <p className="av-ai-meta" style={{ marginTop: 0 }}>
             Mark anything that looks wrong so future reports get smarter for your team.
           </p>
+          {fbNote && <p className="av-ai-meta" style={{ color: "var(--pass)" }}>{fbNote}</p>}
           <div className="av-rem">
             {activeFindings
               .filter((f) => f.status === "fail" || f.status === "warn")

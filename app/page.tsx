@@ -9,11 +9,11 @@ import { brand } from "@/lib/brand";
 
 const CAPABILITIES: { icon: IconName; title: string; body: string; href?: string }[] = [
   { icon: "gauge", title: "Instant A–F grade", body: "Paste a URL and get a full security report in seconds — no login, no install." },
-  { icon: "shield-check", title: "28 deep checks", body: "TLS, response headers, DNSSEC, email authentication, cookies and live mixed-content." },
-  { icon: "file-text", title: "Branded PDF reports", body: "Export a clean, client-ready PDF for any scan in a single click." },
-  { icon: "send", title: "Email reports", body: "Send the full report and PDF straight to any inbox — free." },
-  { icon: "bell", title: "Daily monitoring & alerts", body: "Auto re-scan your sites and get emailed the instant a grade drops." },
-  { icon: "code", title: "REST API", body: "Automate scans in CI/CD and fail builds that fall below an A.", href: "/docs" },
+  { icon: "shield-check", title: "Deep public checks", body: "TLS, headers, DNSSEC, email auth, cookies, mixed content — plus scam signals on free scans." },
+  { icon: "alert", title: "Scam check", body: "Plain-English verdict for phishing and crypto kits. Built for people, not just engineers.", href: "/scam-check" },
+  { icon: "zap", title: "Advanced & Active", body: "Ownership-verified AppSec: injection, XSS, WAF recon, stealth intensity — with exclusions you control.", href: "/advanced" },
+  { icon: "users", title: "Enterprise", body: "Vertical packs for banking, ecommerce, and SaaS. Scope, history, CI gates, security advisor.", href: "/enterprise" },
+  { icon: "code", title: "API & CI", body: "Automate scans and fail builds that slip below your grade bar.", href: "/docs" },
 ];
 
 type SearchParams = Record<string, string | string[] | undefined>;
@@ -91,9 +91,14 @@ const CATEGORIES: { icon: IconName; title: string; body: string }[] = [
     body: "Leaky Server and X-Powered-By banners, risky HTTP methods, and whether you publish a security.txt for responsible disclosure.",
   },
   {
+    icon: "alert",
+    title: "Scam & phishing",
+    body: "Domain age, blocklists, brand lookalikes, and wallet-harvest patterns — so you can warn users before they click.",
+  },
+  {
     icon: "file-text",
     title: "Actionable reports",
-    body: "Every issue ships with a plain-English explanation and a copy-paste fix for nginx, Apache, Express or your DNS — exportable as a clean PDF.",
+    body: "Every issue ships with a plain-English explanation and a copy-paste fix — exportable as a clean PDF.",
   },
 ];
 
@@ -106,12 +111,12 @@ const STEPS = [
   {
     n: "2",
     title: "We inspect it live",
-    body: "Bastionscan runs 28 deep checks across TLS (forward secrecy, OCSP), headers, DNSSEC & email auth in seconds — reading only public data.",
+    body: "We inspect TLS, headers, DNS, cookies, and scam signals from public data — then grade the posture clearly.",
   },
   {
     n: "3",
     title: "Fix and re-scan",
-    body: "Get an A–F grade with prioritized fixes. Apply them, re-scan, and watch your score climb.",
+    body: "Get prioritized fixes in plain language. Apply them, re-scan, and watch your score climb. Own the domain? Unlock Active checks.",
   },
 ];
 

@@ -33,7 +33,13 @@ var profilesByName = map[string]Profile{
 // ParseProfile resolves a profile name, defaulting to Standard for empty or
 // unknown input so the API never hard-fails on a typo.
 func ParseProfile(name string) Profile {
-	if p, ok := profilesByName[strings.ToLower(strings.TrimSpace(name))]; ok {
+	n := strings.ToLower(strings.TrimSpace(name))
+	// Aliases used by enterprise CLI / UI.
+	switch n {
+	case "redteam", "red-team", "offensive":
+		n = ProfileActive.Name
+	}
+	if p, ok := profilesByName[n]; ok {
 		return p
 	}
 	return ProfileStandard

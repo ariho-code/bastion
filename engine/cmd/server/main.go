@@ -43,6 +43,7 @@ import (
 	_ "github.com/ariho-code/bastionscan/engine/internal/modules/resilience"
 	_ "github.com/ariho-code/bastionscan/engine/internal/modules/sqli"
 	_ "github.com/ariho-code/bastionscan/engine/internal/modules/subdomains"
+	_ "github.com/ariho-code/bastionscan/engine/internal/modules/takeover"
 	_ "github.com/ariho-code/bastionscan/engine/internal/modules/tls"
 	_ "github.com/ariho-code/bastionscan/engine/internal/modules/vertical"
 	_ "github.com/ariho-code/bastionscan/engine/internal/modules/wafdetect"
