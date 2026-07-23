@@ -48,10 +48,16 @@ services:
     runtime: docker
     dockerfilePath: ./brain/Dockerfile
     dockerContext: ./brain
+    # Free plan: no persistent disk. Upgrade plan, then uncomment `disk:` below
+    # (or add the disk in the Dashboard → Disks → mount /var/data).
     plan: free
     region: oregon
     healthCheckPath: /health
     autoDeploy: true
+    # disk:
+    #   name: bastion-learning
+    #   mountPath: /var/data
+    #   sizeGB: 1
     envVars:
       # The brain reaches the engine over its PUBLIC url. Render's private
       # network (fromService host:port) is NOT available on the free plan, so we

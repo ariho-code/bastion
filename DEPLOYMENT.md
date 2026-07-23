@@ -108,12 +108,52 @@ curl -s https://bastionscan-brain.onrender.com/health | jq .ai,.rag,.learning
 # ai.enabled should be true when DEEPSEEK_API_KEY is set
 ```
 
-### Persistent learning on Render
+### Persistent learning disk on Render (brain)
 
-Free instances lose `/tmp` on restart. For learning/RAG to survive:
+Free web services **lose local files on every redeploy**. So feedback, scan
+history, and advisor memory need a **persistent disk** on **`bastionscan-brain`**.
 
-1. Brain service → **Disks** → add a disk mounted at `/var/data`
-2. Keep `BASTION_LEARNING_DIR=/var/data/bastion-learning`
+#### Option A — Dashboard (easiest)
+
+1. Open [Render Dashboard](https://dashboard.render.com) → **`bastionscan-brain`**
+2. Left menu → **Disks**
+3. **Add Disk**
+   - **Name:** `bastion-learning` (any label)
+   - **Mount path:** `/var/data`  ← must match exactly
+   - **Size:** `1 GB` is enough to start
+4. Save — Render restarts the service with the disk attached
+5. Environment (same service) confirm:
+   ```
+   BASTION_LEARNING_DIR=/var/data/bastion-learning
+   ```
+6. Redeploy if it didn’t auto-restart
+
+#### Option B — Blueprint (`render.yaml`)
+
+Disks usually require a **paid** instance type. After upgrading the brain plan:
+
+```yaml
+# under bastionscan-brain service:
+disk:
+  name: bastion-learning
+  mountPath: /var/data
+  sizeGB: 1
+```
+
+Keep:
+```
+BASTION_LEARNING_DIR=/var/data/bastion-learning
+```
+
+#### Verify the disk
+
+```bash
+# After a scan + “Looks right / Looks wrong” click, redeploy once:
+curl -s https://YOUR-brain.onrender.com/v1/learning | head -c 400
+# history/feedback counts should still be > 0 after restart
+```
+
+**Do not** attach this disk to the Go **engine** — only the brain writes learning data.
 
 ---
 

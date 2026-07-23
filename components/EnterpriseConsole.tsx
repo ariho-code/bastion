@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import Icon from "@/components/Icon";
 
 interface VerifyRecord {
   domain: string;
@@ -8,9 +9,18 @@ interface VerifyRecord {
   instruction: string;
 }
 
+interface HistoryRow {
+  id: string;
+  target: string;
+  grade: string;
+  risk_level: string;
+  vertical: string;
+  profile: string;
+}
+
 /**
- * Lightweight enterprise workbench: verify ownership, craft scope, jump into
- * Advanced Active with pre-filled query params for a full DAST run.
+ * Enterprise workbench — verify ownership, set scope, launch Advanced Active.
+ * Styled with the same design tokens as the marketing homepage.
  */
 export default function EnterpriseConsole() {
   const [target, setTarget] = useState("");
@@ -19,23 +29,22 @@ export default function EnterpriseConsole() {
   const [vertical, setVertical] = useState("banking");
   const [intensity, setIntensity] = useState("safe");
   const [verify, setVerify] = useState<VerifyRecord | null>(null);
+  const [copied, setCopied] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [history, setHistory] = useState<
-    { id: string; target: string; grade: string; risk_level: string; vertical: string; profile: string }[]
-  >([]);
+  const [history, setHistory] = useState<HistoryRow[]>([]);
 
   useEffect(() => {
-    fetch("/api/history?limit=12")
+    fetch("/api/history?limit=8")
       .then((r) => r.json())
-      .then((d) => setHistory(d.scans || []))
+      .then((d) => setHistory(Array.isArray(d.scans) ? d.scans : []))
       .catch(() => setHistory([]));
   }, []);
 
   const getVerify = useCallback(async () => {
     const t = target.trim();
     if (!t) {
-      setError("Enter a hostname you own.");
+      setError("Enter a domain you own.");
       return;
     }
     setLoading(true);
@@ -44,151 +53,182 @@ export default function EnterpriseConsole() {
     try {
       const res = await fetch(`/api/verify?target=${encodeURIComponent(t)}`);
       const json = await res.json();
-      if (!res.ok) throw new Error(json?.error || json?.detail || "Verify failed");
+      if (!res.ok) throw new Error(json?.error || json?.detail || "Could not create a verify record.");
       setVerify(json as VerifyRecord);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Verify failed");
+      setError(e instanceof Error ? e.message : "Could not create a verify record.");
     } finally {
       setLoading(false);
     }
   }, [target]);
 
+  const copyRecord = async () => {
+    if (!verify?.record) return;
+    try {
+      await navigator.clipboard.writeText(verify.record);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 2000);
+    } catch {
+      /* ignore */
+    }
+  };
+
   const launchActive = () => {
     const t = target.trim();
     if (!t) {
-      setError("Enter a hostname you own.");
+      setError("Enter a domain you own.");
       return;
     }
     const params = new URLSearchParams({ target: t, profile: "active" });
-    // Scope is applied in AdvancedScanner session; store hint for operators.
-    if (typeof window !== "undefined") {
-      try {
-        sessionStorage.setItem(
-          "bastion.enterprise.scope",
-          JSON.stringify({
-            excludePaths: exclude.split(/[\n,]+/).map((s) => s.trim()).filter(Boolean),
-            disableModules: disable.split(/[\n,]+/).map((s) => s.trim()).filter(Boolean),
-            vertical,
-            intensity,
-          })
-        );
-      } catch {
-        /* ignore */
-      }
+    try {
+      sessionStorage.setItem(
+        "bastion.enterprise.scope",
+        JSON.stringify({
+          excludePaths: exclude.split(/[\n,]+/).map((s) => s.trim()).filter(Boolean),
+          disableModules: disable.split(/[\n,]+/).map((s) => s.trim()).filter(Boolean),
+          vertical,
+          intensity,
+        })
+      );
+    } catch {
+      /* ignore */
     }
     window.location.href = `/advanced?${params.toString()}`;
   };
 
   return (
-    <section className="ec card" style={{ marginTop: "1.25rem" }}>
-      <h2 style={{ fontFamily: "var(--display)", letterSpacing: "-0.02em" }}>Workbench</h2>
-      <div className="ec-row">
-        <input
-          className="ec-input"
-          value={target}
-          onChange={(e) => setTarget(e.target.value)}
-          placeholder="yourcompany.com"
-          aria-label="Owned domain"
-        />
-        <button type="button" className="ec-btn" onClick={getVerify} disabled={loading}>
-          {loading ? "…" : "1. Get DNS verify record"}
-        </button>
-        <button type="button" className="ec-btn primary" onClick={launchActive}>
-          2. Launch Active DAST
-        </button>
-      </div>
-      {error && <p className="ec-err">{error}</p>}
-      {verify && (
-        <div className="ec-verify">
-          <p>
-            Publish a TXT record on <code>{verify.domain}</code>:
-          </p>
-          <code className="ec-token">{verify.record}</code>
-          <p className="ec-hint">{verify.instruction}</p>
+    <div className="wb">
+      <div className="wb-shell">
+        {/* Step 1 — target */}
+        <div className="wb-panel">
+          <div className="wb-step-head">
+            <span className="wb-step-n">1</span>
+            <div>
+              <h3>Your domain</h3>
+              <p>Only domains you control. Active checks stay locked until DNS proves ownership.</p>
+            </div>
+          </div>
+          <div className="wb-row">
+            <input
+              className="wb-input"
+              value={target}
+              onChange={(e) => setTarget(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && getVerify()}
+              placeholder="yourcompany.com"
+              aria-label="Domain you own"
+              spellCheck={false}
+            />
+            <button type="button" className="wb-btn" onClick={getVerify} disabled={loading}>
+              {loading ? "Working…" : "Get verify record"}
+            </button>
+          </div>
+          {error && <p className="wb-err">{error}</p>}
+          {verify && (
+            <div className="wb-verify">
+              <div className="wb-verify-top">
+                <span className="wb-verify-ok">
+                  <Icon name="check" size={14} /> Ready to publish
+                </span>
+                <button type="button" className="wb-copy" onClick={copyRecord}>
+                  {copied ? "Copied" : "Copy record"}
+                </button>
+              </div>
+              <p className="wb-verify-label">
+                Add a <strong>TXT</strong> record on <code>{verify.domain}</code>
+              </p>
+              <code className="wb-token">{verify.record}</code>
+              <p className="wb-hint">
+                After DNS propagates (often a few minutes), launch Active. We check the record
+                ourselves — nothing is trusted from the browser alone.
+              </p>
+            </div>
+          )}
         </div>
-      )}
-      <div className="ec-scope">
-        <label>
-          Industry focus
-          <select value={vertical} onChange={(e) => setVertical(e.target.value)}>
-            <option value="banking">Banking / fintech</option>
-            <option value="ecommerce">E-commerce</option>
-            <option value="saas">SaaS / B2B</option>
-            <option value="scam">Anti-fraud / kit cleanup</option>
-            <option value="general">General</option>
-          </select>
-        </label>
-        <label>
-          How thorough
-          <select value={intensity} onChange={(e) => setIntensity(e.target.value)}>
-            <option value="safe">Safe (recommended)</option>
-            <option value="thorough">Thorough</option>
-            <option value="aggressive">Aggressive (change window)</option>
-          </select>
-        </label>
-        <label>
-          Exclude paths (one per line)
-          <textarea value={exclude} onChange={(e) => setExclude(e.target.value)} rows={3} />
-        </label>
-        <label>
-          Disable modules (comma-separated)
-          <input
-            value={disable}
-            onChange={(e) => setDisable(e.target.value)}
-            placeholder="authweak, discovery"
-          />
-        </label>
+
+        {/* Step 2 — scope */}
+        <div className="wb-panel">
+          <div className="wb-step-head">
+            <span className="wb-step-n">2</span>
+            <div>
+              <h3>Scope &amp; focus</h3>
+              <p>Tell us what to leave alone and how deep this run should go.</p>
+            </div>
+          </div>
+          <div className="wb-grid">
+            <label className="wb-field">
+              <span>Industry focus</span>
+              <select value={vertical} onChange={(e) => setVertical(e.target.value)}>
+                <option value="banking">Banking / fintech</option>
+                <option value="ecommerce">E-commerce</option>
+                <option value="saas">SaaS / B2B</option>
+                <option value="scam">Anti-fraud</option>
+                <option value="general">General</option>
+              </select>
+            </label>
+            <label className="wb-field">
+              <span>How thorough</span>
+              <select value={intensity} onChange={(e) => setIntensity(e.target.value)}>
+                <option value="safe">Safe — everyday monitoring</option>
+                <option value="thorough">Thorough — pre-release review</option>
+                <option value="aggressive">Aggressive — change window</option>
+              </select>
+            </label>
+            <label className="wb-field wb-field-wide">
+              <span>Do not test these paths</span>
+              <textarea
+                value={exclude}
+                onChange={(e) => setExclude(e.target.value)}
+                rows={3}
+                placeholder={"/billing\n/admin/production"}
+                spellCheck={false}
+              />
+            </label>
+            <label className="wb-field wb-field-wide">
+              <span>Skip optional checks (optional)</span>
+              <input
+                value={disable}
+                onChange={(e) => setDisable(e.target.value)}
+                placeholder="e.g. leave blank for full coverage"
+                spellCheck={false}
+              />
+            </label>
+          </div>
+        </div>
+
+        {/* Step 3 — launch */}
+        <div className="wb-panel wb-panel-launch">
+          <div className="wb-step-head">
+            <span className="wb-step-n">3</span>
+            <div>
+              <h3>Launch</h3>
+              <p>Opens Advanced with your scope applied. Publish the DNS record first for full Active coverage.</p>
+            </div>
+          </div>
+          <button type="button" className="wb-launch" onClick={launchActive}>
+            Launch Active scan
+            <Icon name="arrow-right" size={18} />
+          </button>
+        </div>
       </div>
+
       {history.length > 0 && (
-        <div className="ec-hist">
-          <h3>Recent scans (learning history)</h3>
-          <ul>
+        <div className="wb-history">
+          <div className="wb-history-head">
+            <h3>Recent activity</h3>
+            <span>Saved on your account space</span>
+          </div>
+          <div className="wb-history-table">
             {history.map((h) => (
-              <li key={h.id}>
-                <code>{h.target}</code> · {h.profile} · {h.vertical} · grade {h.grade} · {h.risk_level}
-              </li>
+              <div className="wb-history-row" key={h.id}>
+                <span className="wb-h-host">{h.target}</span>
+                <span className={`wb-h-grade g-${(h.grade || "").toLowerCase()}`}>{h.grade || "—"}</span>
+                <span className="wb-h-meta">{h.risk_level || "—"}</span>
+                <span className="wb-h-meta">{h.vertical || "general"}</span>
+              </div>
             ))}
-          </ul>
+          </div>
         </div>
       )}
-      <style>{`
-        .ec {
-          background: rgba(15, 23, 42, 0.7);
-          border: 1px solid rgba(148, 163, 184, 0.18);
-          border-radius: 16px;
-          padding: 1.25rem 1.35rem 1.5rem;
-          margin: 1.5rem 0 2rem;
-        }
-        .ec h2 { margin: 0 0 1rem; font-size: 1.1rem; }
-        .ec-row { display: flex; flex-wrap: wrap; gap: 0.6rem; }
-        .ec-input {
-          flex: 1 1 200px; min-width: 180px; background: #0b1220;
-          border: 1px solid rgba(148, 163, 184, 0.25); border-radius: 10px;
-          color: #e2e8f0; padding: 0.65rem 0.8rem;
-        }
-        .ec-btn {
-          border-radius: 10px; border: 1px solid rgba(148, 163, 184, 0.3);
-          background: transparent; color: #e2e8f0; padding: 0.6rem 0.9rem;
-          font-weight: 600; cursor: pointer;
-        }
-        .ec-btn.primary { background: linear-gradient(135deg, #2563eb, #7c3aed); border-color: transparent; }
-        .ec-err { color: #f87171; margin: 0.75rem 0 0; }
-        .ec-verify {
-          margin-top: 1rem; padding: 0.9rem; border-radius: 12px;
-          background: rgba(34, 197, 94, 0.08); border: 1px solid rgba(34, 197, 94, 0.25);
-        }
-        .ec-token { display: block; word-break: break-all; margin: 0.5rem 0; color: #86efac; }
-        .ec-hint { margin: 0; font-size: 0.85rem; color: #94a3b8; }
-        .ec-scope { display: grid; gap: 0.75rem; margin-top: 1rem; }
-        .ec-scope label { display: flex; flex-direction: column; gap: 0.35rem; font-size: 0.85rem; color: #94a3b8; }
-        .ec-scope textarea, .ec-scope input, .ec-scope select {
-          background: #0b1220; border: 1px solid rgba(148, 163, 184, 0.25); border-radius: 10px;
-          color: #e2e8f0; padding: 0.55rem 0.7rem; font-family: ui-monospace, monospace; font-size: 0.85rem;
-        }
-        .ec-hist { margin-top: 1.25rem; }
-        .ec-hist h3 { font-size: 0.95rem; margin: 0 0 0.5rem; }
-        .ec-hist ul { margin: 0; padding-left: 1.1rem; color: #94a3b8; font-size: 0.85rem; line-height: 1.6; }
-      `}</style>
-    </section>
+    </div>
   );
 }
