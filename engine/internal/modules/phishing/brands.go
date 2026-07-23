@@ -104,15 +104,18 @@ var affixes = []string{
 // abuseTLDs are top-level domains disproportionately used for abuse — mostly
 // free or ultra-cheap registrations. Presence is a soft signal, meaningful only
 // alongside other indicators.
+// Kept deliberately tight: only TLDs that are overwhelmingly abuse-dominated and
+// rarely used by legitimate businesses. Mainstream new-gTLDs (.shop, .online,
+// .info, .pro, .biz, .site, .app, .dev, .live, .club, .cc, .space) were removed —
+// millions of legitimate sites use them and flagging them was a major source of
+// false positives. abuse-tld remains a *soft* signal that only matters alongside
+// other indicators.
 var abuseTLDs = map[string]bool{
 	"tk": true, "ml": true, "ga": true, "cf": true, "gq": true, "top": true,
-	"xyz": true, "buzz": true, "click": true, "link": true, "country": true,
-	"kim": true, "work": true, "support": true, "rest": true, "fit": true,
-	"zip": true, "mov": true, "cam": true, "quest": true, "cfd": true,
-	"sbs": true, "autos": true, "bond": true, "lol": true, "icu": true,
-	"cyou": true, "shop": true, "online": true, "site": true, "website": true,
-	"space": true, "fun": true, "live": true, "pro": true, "info": true,
-	"club": true, "pw": true, "cc": true, "ws": true, "biz": true,
+	"buzz": true, "click": true, "country": true, "kim": true,
+	"rest": true, "cfd": true, "sbs": true, "autos": true, "bond": true,
+	"cyou": true, "quest": true, "cam": true, "gdn": true, "men": true,
+	"loan": true, "mom": true, "pw": true,
 }
 
 // seedPhraseMarkers are phrases that only ever appear on wallet-draining scam
@@ -168,14 +171,14 @@ var scamDomainParts = []string{
 // highRiskHosting marks ASNs / org fingerprints frequently used by disposable
 // scam infrastructure (bulletproof / abuse-tolerant providers). Soft alone;
 // strong when the domain is also young or lexical-scam.
+// Kept to genuinely abuse-tolerant / bulletproof fingerprints only. Mainstream
+// clouds that also host large numbers of legitimate sites (Vultr/Choopa, M247,
+// Serverius, HostKey, ISPsystem) were removed to avoid penalizing normal sites.
 var highRiskHosting = []string{
 	"ddos-guard", "ddosguard", "as57724",
 	"quasi networks", "quasi-networks",
-	"//c/ispsystem", "ispsystem",
-	"hostkey", "serverius", "retn",
-	"m247", "blazingfast", "psychz",
-	"choopa", "constant", // vultr residual naming sometimes
-	"bulletproof", "abuser",
+	"blazingfast", "bulletproof", "abuser",
+	"flokinet", "hostsailor",
 }
 
 // keywordCluster is one scam-genre fingerprint applied to page text.

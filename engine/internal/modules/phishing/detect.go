@@ -199,57 +199,56 @@ func assess(in input, extra ...signal) assessment {
 	hasNew := has("domain-new")
 	hasYoung := has("domain-young") || hasNew
 	hasLexical := has("lexical")
+	hasScamContent := has("scam:")
 	hasUnreach := has("unreachable")
 	hasHosting := has("hosting-risk")
+	hasAbuseTLD := has("abuse-tld")
 
-	for _, s := range a.signals {
-		if s.code == "blocklist" {
-			a.verdict = verdictDangerous
-		}
-		if s.code == "domain-new" && impWeight > 0 && a.verdict < verdictDangerous {
-			a.verdict = verdictDangerous
-		}
-	}
-
-	// Young / mid-age throwaway domains with lexical scam names or unreachable
-	// kits are the modern investment/AI-trading scam pattern (future-aihub.com).
-	if hasLexical && (hasNew || hasYoung) && a.verdict < verdictSuspicious {
-		a.verdict = verdictSuspicious
-		if a.score < 40 {
-			a.score = 40
-		}
-	}
-	if hasLexical && hasNew && a.verdict < verdictDangerous {
-		a.verdict = verdictSuspicious
-		if hasUnreach || hasHosting {
-			a.verdict = verdictDangerous
-			if a.score < 70 {
-				a.score = 70
-			}
-		}
-	}
-	if hasYoung && hasUnreach && hasLexical && a.verdict < verdictSuspicious {
-		a.verdict = verdictSuspicious
-	}
-	if hasYoung && hasUnreach && hasHosting && a.verdict < verdictSuspicious {
-		a.verdict = verdictSuspicious
-		if a.score < 45 {
-			a.score = 45
-		}
-	}
-	// Full kit fingerprint: scam-shaped name + young domain + dead origin +
-	// abuse-tolerant hosting is the modern disposable investment scam.
-	if hasLexical && hasYoung && hasUnreach && hasHosting && a.verdict < verdictDangerous {
-		a.verdict = verdictDangerous
-		if a.score < 70 {
-			a.score = 70
-		}
-	}
-	if hasNew && hasUnreach && a.verdict < verdictSuspicious {
-		a.verdict = verdictSuspicious
-	}
+	// A conclusive signal is one that, on its own, justifies a scam verdict: an
+	// abuse blocklist listing, seed-phrase harvesting, or brand impersonation
+	// paired with credential/registration evidence. Everything else — a
+	// scam-shaped name, youth, cheap hosting, an abuse TLD, a keyword cluster —
+	// is CIRCUMSTANTIAL and must corroborate before it means anything. This is
+	// the core false-positive defense: a legitimate young AI/fintech company on
+	// a .io domain trips at most one circumstantial signal and stays SAFE/LOW.
 	if hasBlocklist {
 		a.verdict = verdictDangerous
+	}
+	if impWeight > 0 && hasNew && a.verdict < verdictDangerous {
+		a.verdict = verdictDangerous // fresh domain actively impersonating a brand
+	}
+
+	// Count independent circumstantial corroborators.
+	corroborators := 0
+	for _, c := range []bool{hasScamContent, hasUnreach, hasHosting, hasAbuseTLD, hasYoung} {
+		if c {
+			corroborators++
+		}
+	}
+
+	// Page content matching a known scam playbook is the strongest circumstantial
+	// signal — when it co-occurs with a scam-shaped name or youth, it's a scam.
+	if hasScamContent && (hasLexical || hasYoung || hasAbuseTLD) && a.verdict < verdictSuspicious {
+		a.verdict = verdictSuspicious
+	}
+
+	// A scam-shaped name only escalates with at least two OTHER corroborators
+	// (e.g. young + unreachable, or abuse-TLD + scam content). Name + one weak
+	// signal stays LOW.
+	if hasLexical && corroborators >= 2 && a.verdict < verdictSuspicious {
+		a.verdict = verdictSuspicious
+		if a.score < 34 {
+			a.score = 34
+		}
+	}
+
+	// Full disposable-kit fingerprint: scam-shaped name + fresh domain + dead
+	// origin + abuse-tolerant hosting. This is an unambiguous throwaway scam.
+	if hasLexical && hasNew && hasUnreach && hasHosting && a.verdict < verdictDangerous {
+		a.verdict = verdictDangerous
+		if a.score < 65 {
+			a.score = 65
+		}
 	}
 
 	// Established-domain trust: multi-year domains with only soft signals stay SAFE.
@@ -301,55 +300,69 @@ func detectLexicalDomain(domain, sld string) []signal {
 		}
 		if flat == tokFlat || strings.Contains(flat, tokFlat) || strings.Contains(sld, tok) {
 			out = append(out, signal{
+				// Weak on its own (below the LOW threshold): a scam-shaped *name*
+				// is only a prior. Real legitimate businesses use names like
+				// "aitrading" or "smartinvest", so this must be corroborated by
+				// content, youth+infra, or reputation before it means anything.
 				code:   "lexical-scam-name",
-				weight: 22,
-				detail: "The domain name matches patterns widely used by fake investment, AI-trading, and crypto-scam sites.",
+				weight: 14,
+				detail: "The domain name uses wording common to fake investment, AI-trading, and crypto-scam sites (weak on its own).",
 			})
 			return out
 		}
 	}
 
-	// Corroborated weak parts: need 2+ distinct commercial/scam tokens in the SLD.
+	// Corroborated weak parts: a scam-combo requires an explicit high-intent
+	// money/urgency word (earn, profit, bonus, airdrop, giveaway, doubler, …)
+	// PLUS a commercial word. Two generic fintech words ("future"+"finance",
+	// "smart"+"capital") are NOT enough — that pattern is overwhelmingly legit.
 	parts := strings.FieldsFunc(sld, func(r rune) bool {
 		return r == '-' || r == '_' || r == '.'
 	})
 	hits := findScamPartHits(flat, parts)
-	if len(hits) >= 2 {
-		// Downgrade pure tech names: e.g. only generic pairs without money intent.
-		money := false
-		for _, m := range []string{
-			"earn", "profit", "invest", "trading", "trade", "forex", "crypto",
-			"bitcoin", "btc", "eth", "nft", "token", "coin", "bonus", "reward",
-			"airdrop", "wallet", "wealth", "money", "cash", "fund", "yield",
-			"broker", "exchange", "ai", "bot", "future", "hub",
-		} {
-			if hits[m] {
-				money = true
-				break
-			}
+	if len(hits) >= 2 && hasHighIntentPart(hits) {
+		w := 12
+		if len(hits) >= 3 {
+			w = 16
 		}
-		if money {
-			w := 16
-			if len(hits) >= 3 {
-				w = 22
-			}
-			out = append(out, signal{
-				code:   "lexical-scam-combo",
-				weight: w,
-				detail: "The domain combines multiple investment/crypto/AI buzzwords typical of throwaway scam sites.",
-			})
-		}
+		out = append(out, signal{
+			code:   "lexical-scam-combo",
+			weight: w,
+			detail: "The domain fuses a get-rich / claim / giveaway word with investment or crypto terms, a throwaway-scam naming style.",
+		})
 	}
 
-	// Heavy hyphenation on a commercial SLD is a mild supporting signal.
-	if strings.Count(sld, "-") >= 2 && len(hits) >= 1 {
+	// Heavy hyphenation on a commercial SLD is a mild supporting signal, and only
+	// when a high-intent word is present.
+	if strings.Count(sld, "-") >= 2 && hasHighIntentPart(hits) {
 		out = append(out, signal{
 			code:   "lexical-hyphenated",
 			weight: 6,
-			detail: "The domain packs multiple hyphenated marketing words — a common disposable-scam naming style.",
+			detail: "The domain packs multiple hyphenated get-rich marketing words — a common disposable-scam naming style.",
 		})
 	}
 	return out
+}
+
+// highIntentParts are the words that signal actual scam intent, as opposed to
+// generic commercial vocabulary that legitimate fintech/AI companies also use.
+// Every entry must also exist in scamDomainParts so findScamPartHits can surface
+// it. Generic words (invest, trade, finance, capital, ai, hub, future, smart) are
+// deliberately excluded — they are overwhelmingly legitimate.
+var highIntentParts = map[string]bool{
+	"earn": true, "profit": true, "bonus": true, "reward": true,
+	"airdrop": true, "claim": true, "rich": true, "wealth": true, "yield": true,
+}
+
+// hasHighIntentPart reports whether the detected SLD parts include at least one
+// unambiguous scam-intent word.
+func hasHighIntentPart(hits map[string]bool) bool {
+	for tok := range hits {
+		if highIntentParts[tok] {
+			return true
+		}
+	}
+	return false
 }
 
 // findScamPartHits returns distinct scamDomainParts found in a flattened SLD.
@@ -414,11 +427,18 @@ func detectImpersonation(host, domain, sld string) (brandName, kind string, weig
 			}
 		}
 		for _, tok := range b.tokens {
-			// Combosquat: brand token at a boundary, fused with an affix word,
-			// or standing alone as a DNS label on a non-brand domain.
-			combo := (len(tok) >= 4 && (boundaryContains(sld, tok) || affixConcat(sld, tok))) ||
-				labelPresent(host, tok, domain)
-			if combo {
+			switch {
+			case len(tok) >= 4 && sld == tok:
+				// The exact brand word as the whole SLD on a non-official TLD
+				// (e.g. tradingview.io, paypal.co). This is frequently a
+				// legitimate alternate/regional site, so it is weaker than a
+				// combosquat and needs corroboration (abuse TLD, youth) to matter.
+				weight, brandName, kind = keepMax(weight, 22, brandName, kind, b.name, "alt-tld")
+			case len(tok) >= 4 && (boundaryContains(sld, tok) || affixConcat(sld, tok)):
+				// Brand token fused with other words: paypal-secure, verifyapple.
+				weight, brandName, kind = keepMax(weight, 35, brandName, kind, b.name, "combosquat")
+			case labelPresent(host, tok, domain):
+				// Brand word as a full DNS label on a different registrable domain.
 				weight, brandName, kind = keepMax(weight, 35, brandName, kind, b.name, "combosquat")
 			}
 			// Homoglyph / leetspeak: paypa1, g00gle, b1nance.
