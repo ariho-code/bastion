@@ -132,10 +132,12 @@ def _ai_profile(
         "deepseek": ("DEEPSEEK_API_KEY", "https://api.deepseek.com/v1", "deepseek-chat", ""),
         "grok": ("XAI_API_KEY", "https://api.x.ai/v1", "grok-4.5", "XAI_API_KEY"),
         "xai": ("XAI_API_KEY", "https://api.x.ai/v1", "grok-4.5", ""),
+        # Claude uses the native Anthropic Messages API (see ai/client.py) — not
+        # the OpenAI-compatible path — so the base URL is the SDK default host.
         "claude": (
             "ANTHROPIC_API_KEY",
-            "https://api.anthropic.com/v1",
-            "claude-sonnet-4-20250514",
+            "https://api.anthropic.com",
+            "claude-opus-4-8",
             "",
         ),
         "openai": ("OPENAI_API_KEY", "https://api.openai.com/v1", "gpt-4o-mini", ""),
