@@ -47,6 +47,16 @@ app.add_middleware(
 )
 
 
+@app.on_event("startup")
+async def _startup_learning() -> None:
+    """Ensure learning / RAG roots exist on the mounted disk (or local fallback)."""
+    # Touch stores so directories and seed knowledge are ready before traffic.
+    store = get_store()
+    rag = get_rag()
+    _ = store.feedback_stats()
+    _ = rag.stats()
+
+
 @app.get("/health")
 async def health() -> dict[str, object]:
     engine_ok = False
@@ -58,6 +68,8 @@ async def health() -> dict[str, object]:
     ai = get_client()
     store = get_store()
     rag = get_rag()
+    learning_dir = str(store.root)
+    on_disk = learning_dir.startswith("/var/data")
     return {
         "status": "ok",
         "service": "bastionscan-brain",
@@ -65,15 +77,17 @@ async def health() -> dict[str, object]:
         "engine_reachable": engine_ok,
         "ai": {
             "enabled": ai.enabled,
-            "provider": ai.provider,
-            "model": ai.model,
+            "provider": ai.provider if ai.enabled else "local",
+            "configured": bool(ai.api_key),
         },
         "learning": {
-            "dir": str(store.root),
+            "dir": learning_dir,
+            "persistent_disk": on_disk,
             "feedback": store.feedback_stats().get("total", 0),
+            "scans": len(store.list_scans(limit=500)),
             "ml_trained_on": get_fp_model().trained_on,
         },
-        "rag": rag.stats(),
+        "rag": {"documents": rag.stats().get("documents", 0)},
     }
 
 

@@ -1,19 +1,20 @@
 # Bastionscan advanced backend — Render Blueprint.
 #
-# One click deploys both services:
-#   1. bastionscan-engine — the Go scanning engine (Docker, ./engine)
-#   2. bastionscan-brain   — the Python risk brain (Docker, ./brain), wired to
-#                            the engine automatically.
+# Services:
+#   1. bastionscan-engine — Go scanning engine (Docker, free OK)
+#   2. bastionscan-brain  — Python risk + AI learning brain
+#      → Starter plan + 1GB persistent disk at /var/data (best option)
+#        so feedback, history, and advisor memory survive restarts.
 #
-# Deploy:
+# Deploy / update:
 #   1. Push this repo to GitHub.
-#   2. Render Dashboard → New → Blueprint → pick this repo. Render reads this file.
-#   3. After both services are live, copy the brain's URL and set it on Vercel:
-#        BASTION_BRAIN_URL = https://bastionscan-brain.onrender.com
-#      The Next.js /advanced page proxies to the brain, which drives the engine.
+#   2. Render Dashboard → Blueprint → sync this repo (or New Blueprint).
+#   3. Set secrets when prompted:
+#        DEEPSEEK_API_KEY, VERIFY_SECRET
+#   4. Vercel: BASTION_BRAIN_URL = https://bastionscan-brain.onrender.com
 #
-# Both run on the free plan. Free instances sleep when idle; the first scan
-# after a nap takes a few extra seconds to wake them.
+# Cost note: Free web services cannot attach disks. Brain uses starter so
+# learning data is durable. Engine stays free.
 
 services:
   # --- Go scanning engine ----------------------------------------------------
@@ -42,37 +43,33 @@ services:
       - key: TRUSTED_PROXY
         value: "true"
 
-  # --- Python risk brain -----------------------------------------------------
+  # --- Python risk brain + durable learning ---------------------------------
   - type: web
     name: bastionscan-brain
     runtime: docker
     dockerfilePath: ./brain/Dockerfile
     dockerContext: ./brain
-    # Free plan: no persistent disk. Upgrade plan, then uncomment `disk:` below
-    # (or add the disk in the Dashboard → Disks → mount /var/data).
-    plan: free
+    # Starter required for persistent disks (free cannot attach disks).
+    plan: starter
     region: oregon
     healthCheckPath: /health
     autoDeploy: true
-    # disk:
-    #   name: bastion-learning
-    #   mountPath: /var/data
-    #   sizeGB: 1
+    disk:
+      name: bastion-learning
+      mountPath: /var/data
+      sizeGB: 1
     envVars:
-      # The brain reaches the engine over its PUBLIC url. Render's private
-      # network (fromService host:port) is NOT available on the free plan, so we
-      # use the deterministic public hostname instead. If you renamed the engine
-      # service, or Render appended a suffix to its URL, update this value to
-      # match the engine's real onrender.com URL.
+      # Public engine URL (free services have no private networking).
       - key: ENGINE_URL
         value: https://bastionscan-engine.onrender.com
       - key: ENGINE_TIMEOUT
         value: "120"
       - key: ALLOWED_ORIGINS
         value: "*"
-      # --- AI brain (set secret values in Render Dashboard → Environment) ---
-      # Put DEEPSEEK_API_KEY (and later XAI_API_KEY / ANTHROPIC_API_KEY) on
-      # bastionscan-brain ONLY — not on the Go engine.
+      # Learning + RAG + ML weights live on the attached disk.
+      - key: BASTION_LEARNING_DIR
+        value: /var/data/bastion-learning
+      # AI (set the secret value in Dashboard if not prompted by Blueprint)
       - key: AI_PROVIDER
         value: deepseek
       - key: AI_ENABLED
@@ -81,12 +78,3 @@ services:
         value: "true"
       - key: DEEPSEEK_API_KEY
         sync: false
-      - key: BASTION_LEARNING_DIR
-        value: /var/data/bastion-learning
-      # Optional later:
-      # - key: XAI_API_KEY
-      #   sync: false
-      # - key: ANTHROPIC_API_KEY
-      #   sync: false
-      # - key: EMBEDDING_API_KEY
-      #   sync: false

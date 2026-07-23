@@ -108,52 +108,55 @@ curl -s https://bastionscan-brain.onrender.com/health | jq .ai,.rag,.learning
 # ai.enabled should be true when DEEPSEEK_API_KEY is set
 ```
 
-### Persistent learning disk on Render (brain)
+### Persistent learning disk (brain) — best option: Blueprint
 
-Free web services **lose local files on every redeploy**. So feedback, scan
-history, and advisor memory need a **persistent disk** on **`bastionscan-brain`**.
+**Best option:** define the disk in [`render.yaml`](./render.yaml) on
+**`bastionscan-brain`** with **plan: starter** + a **1 GB disk** at `/var/data`.
 
-#### Option A — Dashboard (easiest)
+Free web services **cannot** attach disks (Render policy). Files under `/tmp`
+are wiped on every redeploy/sleep. The blueprint is already set up as:
 
-1. Open [Render Dashboard](https://dashboard.render.com) → **`bastionscan-brain`**
-2. Left menu → **Disks**
-3. **Add Disk**
-   - **Name:** `bastion-learning` (any label)
-   - **Mount path:** `/var/data`  ← must match exactly
-   - **Size:** `1 GB` is enough to start
-4. Save — Render restarts the service with the disk attached
-5. Environment (same service) confirm:
-   ```
-   BASTION_LEARNING_DIR=/var/data/bastion-learning
-   ```
-6. Redeploy if it didn’t auto-restart
+| Setting | Value |
+| ------- | ----- |
+| Service | `bastionscan-brain` only (not engine) |
+| Plan | `starter` |
+| Disk name | `bastion-learning` |
+| Mount path | `/var/data` |
+| Env | `BASTION_LEARNING_DIR=/var/data/bastion-learning` |
 
-#### Option B — Blueprint (`render.yaml`)
+#### Apply it
 
-Disks usually require a **paid** instance type. After upgrading the brain plan:
+1. Push `main` (already includes the disk block).
+2. Render Dashboard → your **Blueprint** → **Manual Sync** (or wait for auto).
+3. Approve the plan upgrade + disk if Render prompts for billing.
+4. Confirm env secrets: `DEEPSEEK_API_KEY` (brain), `VERIFY_SECRET` (engine).
+5. Wait until brain is **Live**.
 
-```yaml
-# under bastionscan-brain service:
-disk:
-  name: bastion-learning
-  mountPath: /var/data
-  sizeGB: 1
-```
+#### If the service already exists without a disk
 
-Keep:
-```
-BASTION_LEARNING_DIR=/var/data/bastion-learning
-```
+**Preferred:** Blueprint sync (above) so IaC stays source of truth.
 
-#### Verify the disk
+**Manual fallback (same result):**
+1. Open **`bastionscan-brain`** → **Settings** → instance type → **Starter**
+2. **Disks** → **Add Disk**
+   - Mount path: **`/var/data`**
+   - Size: **1 GB**
+3. Environment: `BASTION_LEARNING_DIR=/var/data/bastion-learning`
+4. Save / redeploy
+
+#### Verify
 
 ```bash
-# After a scan + “Looks right / Looks wrong” click, redeploy once:
-curl -s https://YOUR-brain.onrender.com/v1/learning | head -c 400
-# history/feedback counts should still be > 0 after restart
+curl -s https://bastionscan-brain.onrender.com/health | jq .learning
+# Expect:
+#   "dir": "/var/data/bastion-learning",
+#   "persistent_disk": true
 ```
 
-**Do not** attach this disk to the Go **engine** — only the brain writes learning data.
+After one Advanced scan + a “Looks right / Looks wrong” click, restart the
+service once — feedback counts should **not** reset to zero.
+
+**Never** attach this disk to the Go **engine** — only the brain writes learning data.
 
 ---
 

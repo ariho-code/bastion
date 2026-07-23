@@ -53,7 +53,9 @@ class Config:
             explicit_base=os.getenv("AI_BASE_URL", "").strip(),
             explicit_model=os.getenv("AI_MODEL", "").strip(),
         )
-        self.learning_dir: str = os.getenv("BASTION_LEARNING_DIR", "/tmp/bastion-learning")
+        self.learning_dir: str = _resolve_learning_dir(
+            os.getenv("BASTION_LEARNING_DIR", "/var/data/bastion-learning")
+        )
         self.ai_on_assess: bool = os.getenv("AI_ON_ASSESS", "true").strip().lower() not in (
             "0",
             "false",
@@ -73,6 +75,44 @@ class Config:
         self.embedding_enabled: bool = bool(self.embedding_api_key)
 
         self.version: str = "0.3.0"
+
+
+def _resolve_learning_dir(preferred: str) -> str:
+    """Prefer the disk mount (/var/data/…); fall back to /tmp if unwritable.
+
+    On Render, a 1GB disk is mounted at /var/data for the brain service. Local
+    dev usually has no such mount, so we create /tmp/bastion-learning instead.
+    """
+    import logging
+    from pathlib import Path
+
+    log = logging.getLogger("bastion.config")
+    candidates = [
+        preferred.strip() or "/var/data/bastion-learning",
+        "/var/data/bastion-learning",
+        "/tmp/bastion-learning",
+    ]
+    seen: set[str] = set()
+    for raw in candidates:
+        path = Path(raw)
+        key = str(path)
+        if key in seen:
+            continue
+        seen.add(key)
+        try:
+            path.mkdir(parents=True, exist_ok=True)
+            probe = path / ".write_test"
+            probe.write_text("ok", encoding="utf-8")
+            probe.unlink(missing_ok=True)
+            if key != preferred:
+                log.warning("learning dir %s not usable; using %s", preferred, key)
+            return key
+        except OSError:
+            continue
+    # Last resort — should still work on any Linux container.
+    fallback = Path("/tmp/bastion-learning")
+    fallback.mkdir(parents=True, exist_ok=True)
+    return str(fallback)
 
 
 def _ai_profile(
