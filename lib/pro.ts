@@ -9,8 +9,15 @@ export const FREE_ADVANCED_LIMIT = 5; // free advanced scans per day
 
 const PRO_KEY = "bastion:pro";
 
-/** True when the visitor has unlocked Pro (checkout or ?pro=1 test flag). */
+// Product decision: the whole platform is currently FREE and fully open — every
+// advanced and enterprise capability is unlocked for everyone. Billing/tiers
+// will be wired up later. Because every surface reads isPro(), flipping this one
+// switch back to `false` re-enables the Pro paywall across the entire product.
+export const PRO_UNLOCKED_FOR_ALL = true;
+
+/** True when the visitor has unlocked Pro. Currently true for everyone (free). */
 export function isPro(): boolean {
+  if (PRO_UNLOCKED_FOR_ALL) return true;
   try {
     return localStorage.getItem(PRO_KEY) === "1";
   } catch {

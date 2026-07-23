@@ -111,21 +111,21 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // Advanced and enterprise scans are privileged and must be authenticated —
-  // they drive intrusive, resource-heavy probing and belong behind a key. The
-  // consumer scam-check (which never sends a scope) stays open. Operators issue
-  // keys via API_KEYS; set PUBLIC_ADVANCED_OPEN=true to run advanced as an open
-  // public demo, and auth is relaxed in non-production for local development.
+  // Product decision: advanced and enterprise scanning are currently FREE and
+  // fully open to everyone. The authentication mechanism is preserved but only
+  // enforced when an operator explicitly locks it down with API_REQUIRE_KEY=true
+  // (billing/tiers to be wired up later). The Active tier's real safety boundary
+  // — DNS ownership verification in the engine — is independent of this gate and
+  // always applies, so intrusive probes still require a verified-owned target.
   const privileged = !!scope || profile === "active";
-  const openDemo =
-    process.env.PUBLIC_ADVANCED_OPEN === "true" || process.env.NODE_ENV !== "production";
-  if (privileged && !openDemo) {
+  const locked = process.env.API_REQUIRE_KEY === "true";
+  if (privileged && locked) {
     const id = identify(req);
     if (!id.keyed) {
       return NextResponse.json(
         {
           error:
-            "Authentication required. Advanced and enterprise scans need a valid API access key — add yours in the scanner. Operators provision keys via the API_KEYS setting.",
+            "Authentication required. This deployment has locked advanced/enterprise scans — add a valid API access key in the scanner. Operators provision keys via API_KEYS.",
         },
         { status: 401, headers: { "WWW-Authenticate": 'Bearer realm="bastionscan"' } }
       );
