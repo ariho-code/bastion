@@ -204,7 +204,27 @@ export default function AdvancedScanner() {
   const [intensity, setIntensity] = useState<"safe" | "thorough" | "aggressive">("safe");
   const [stealth, setStealth] = useState(true);
   const [consentLoad, setConsentLoad] = useState(false);
+  const [apiKey, setApiKey] = useState("");
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Advanced & enterprise scans are authenticated. The access key is stored
+  // locally in the browser and sent as a Bearer token on every scan.
+  useEffect(() => {
+    try {
+      setApiKey(localStorage.getItem("bastion:apiKey") || "");
+    } catch {
+      /* ignore */
+    }
+  }, []);
+  const saveApiKey = useCallback((v: string) => {
+    setApiKey(v);
+    try {
+      if (v.trim()) localStorage.setItem("bastion:apiKey", v.trim());
+      else localStorage.removeItem("bastion:apiKey");
+    } catch {
+      /* ignore */
+    }
+  }, []);
 
   function parseList(raw: string): string[] {
     return raw
@@ -301,7 +321,10 @@ export default function AdvancedScanner() {
             : { vertical };
         const res = await fetch("/api/deep", {
           method: "POST",
-          headers: { "content-type": "application/json" },
+          headers: {
+            "content-type": "application/json",
+            ...(apiKey.trim() ? { Authorization: `Bearer ${apiKey.trim()}` } : {}),
+          },
           body: JSON.stringify({ target: t, profile: p, scope, ai: true }),
         });
         const json = await res.json();
@@ -331,6 +354,7 @@ export default function AdvancedScanner() {
       intensity,
       stealth,
       consentLoad,
+      apiKey,
     ]
   );
 
@@ -408,6 +432,22 @@ export default function AdvancedScanner() {
           {loading ? "Scanning…" : "Run scan"}
         </button>
       </form>
+
+      <div className="av-apikey">
+        <input
+          className="av-apikey-input"
+          type="password"
+          value={apiKey}
+          onChange={(e) => saveApiKey(e.target.value)}
+          placeholder="API access key (required for advanced & enterprise scans)"
+          aria-label="API access key"
+          autoComplete="off"
+          spellCheck={false}
+        />
+        <span className={`av-apikey-state ${apiKey.trim() ? "ok" : ""}`}>
+          {apiKey.trim() ? "Authenticated" : "Not authenticated"}
+        </span>
+      </div>
 
       {!pro && (
         <div className="av-quota">

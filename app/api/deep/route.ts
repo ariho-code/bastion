@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { rateLimit } from "@/lib/ratelimit";
+import { identify } from "@/lib/apiauth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -107,6 +108,27 @@ export async function POST(req: NextRequest) {
         if (Object.keys(eh).length) sess.extraHeaders = eh;
       }
       if (Object.keys(sess).length) scope.session = sess;
+    }
+  }
+
+  // Advanced and enterprise scans are privileged and must be authenticated —
+  // they drive intrusive, resource-heavy probing and belong behind a key. The
+  // consumer scam-check (which never sends a scope) stays open. Operators issue
+  // keys via API_KEYS; set PUBLIC_ADVANCED_OPEN=true to run advanced as an open
+  // public demo, and auth is relaxed in non-production for local development.
+  const privileged = !!scope || profile === "active";
+  const openDemo =
+    process.env.PUBLIC_ADVANCED_OPEN === "true" || process.env.NODE_ENV !== "production";
+  if (privileged && !openDemo) {
+    const id = identify(req);
+    if (!id.keyed) {
+      return NextResponse.json(
+        {
+          error:
+            "Authentication required. Advanced and enterprise scans need a valid API access key — add yours in the scanner. Operators provision keys via the API_KEYS setting.",
+        },
+        { status: 401, headers: { "WWW-Authenticate": 'Bearer realm="bastionscan"' } }
+      );
     }
   }
 

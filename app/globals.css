@@ -2516,6 +2516,38 @@ h3 {
     transform: translateY(0);
   }
 }
+/* --- advanced/enterprise API access key --- */
+.av-apikey {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+.av-apikey-input {
+  flex: 1;
+  min-width: 220px;
+  background: var(--bg-2);
+  border: 1px solid var(--border-2);
+  border-radius: 10px;
+  padding: 11px 14px;
+  color: var(--text);
+  font-size: 14px;
+}
+.av-apikey-input:focus {
+  outline: none;
+  border-color: var(--accent-2);
+}
+.av-apikey-state {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-3);
+  white-space: nowrap;
+}
+.av-apikey-state.ok {
+  color: #22c55e;
+}
+
 /* --- scam & phishing verdict banner --- */
 .av-scam {
   border: 1px solid;
