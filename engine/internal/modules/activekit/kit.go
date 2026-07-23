@@ -293,6 +293,7 @@ type Client struct {
 	Env    *scan.Env
 	Target *scan.Target
 	Budget *Budget
+	http   *http.Client
 	delay  time.Duration
 	mu     sync.Mutex
 }
@@ -300,7 +301,22 @@ type Client struct {
 func NewClient(env *scan.Env, t *scan.Target) *Client {
 	_, _, delayMs := t.Scope.ProbeBudget()
 	d := time.Duration(delayMs) * time.Millisecond
-	return &Client{Env: env, Target: t, Budget: NewBudget(t.Scope), delay: d}
+	return &Client{Env: env, Target: t, Budget: NewBudget(t.Scope), http: probeClient(env), delay: d}
+}
+
+// probeClient derives a NON-redirect-following client from the environment's
+// SSRF-guarded client. DAST probes must observe the raw response — the Location
+// header, status code and Set-Cookie of a 3xx — instead of chasing the redirect
+// (which is how open-redirect, auth and CSRF checks actually detect issues). It
+// reuses the guarded Transport, so SSRF protection is fully preserved.
+func probeClient(env *scan.Env) *http.Client {
+	base := http.DefaultClient
+	if env != nil && env.HTTP != nil {
+		base = env.HTTP
+	}
+	dup := *base // shallow copy keeps the guarded Transport
+	dup.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
+	return &dup
 }
 
 func (c *Client) stealthSleep() {
@@ -406,7 +422,11 @@ func (c *Client) do(ctx context.Context, method, rawURL, body, ct string) ProbeR
 	if ct != "" {
 		req.Header.Set("Content-Type", ct)
 	}
-	resp, err := c.Env.HTTP.Do(req)
+	client := c.http
+	if client == nil {
+		client = c.Env.HTTP
+	}
+	resp, err := client.Do(req)
 	if err != nil {
 		return ProbeResult{Err: err, URL: rawURL}
 	}
